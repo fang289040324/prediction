@@ -7,6 +7,9 @@ import scipy.signal
 import matplotlib.pyplot as plt
 from nussl import AudioMix
 import pickle
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'bss_eval'))
+import bss_eval_wrapper
 
 
 def generate_dry_mixtures():
@@ -183,13 +186,17 @@ def add_reverb(signal, impulse_response):
     return combo / abs(combo).max()
 
 
-def calculate_sdrs(pickle_dir):
+def calculate_sdrs(pickle_dir, seed_dir):
     pickles = os.listdir(pickle_dir)
 
     for f in pickles:
         duet = load_pickle(pickle_dir + f)  # type: nussl.Duet
         separated_srcs = duet.separated_sources
-        real_src_paths = f.split('_')
+        real_src_paths = f.split('_')[0:2]
+        for i in xrange(0, len(separated_srcs)):
+            bss_eval_wrapper.bss_eval_sources_wrapper(separated_srcs[i], wav.read(seed_dir+real_src_paths[i]+'.wav'))
+
+
 
 
 def main():
@@ -201,11 +208,11 @@ def main():
         os.mkdir('Output/')
     if not os.path.exists('Output/pickle/'):
         os.mkdir('Output/pickle/')
-    run_duet('audio/mix/', 'Output/mix/', 'Output/pickle/mix/')
+    #run_duet('audio/mix/', 'Output/mix/', 'Output/pickle/mix/')
     #run_duet('audio/outputs/', 'Output/reverb/', 'Output/pickle/reverb/')
     #run_duet('audio/tests/', 'Output/test/', 'Output/pickle/tests/')
 
-    calculate_sdrs('Output/pickle/mix/')
+    calculate_sdrs('Output/pickle/mix/', 'audio/seed/')
 
 
 def delay(data, delay):
