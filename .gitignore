@@ -1,0 +1,6 @@
+.idea/*
+*.pyc
+Duet/audio/
+Duet/output/
+!Duet/audio/seed/
+Duet/*.txt
