@@ -1,0 +1,54 @@
+import numpy as np
+import csv
+from sklearn import cross_validation
+from sklearn import neighbors
+from matplotlib import pyplot as plt
+
+
+def read_data(sdr_fname, statistic_fname):
+    with open(sdr_fname, 'r') as sdr_f:
+        sdrs = []
+        iters = []
+        q = csv.DictReader(sdr_f, delimiter='\t',
+                            fieldnames=['filename1', 'filename2', 'sdr', 'sir', 'sar', 'perm', 'irname'])
+        for line in q:
+            sdrs.append(np.average(np.fromstring(line['sdr'].translate(None,'][()'), sep=' ')))
+            iters.append(float(line['irname'].split('-')[1].split("'")[0]))
+
+    with open(statistic_fname, 'r') as stat_f:
+        entropies = []
+        peak_heights = []
+        q = csv.DictReader(stat_f, delimiter='\t', fieldnames=['filename', 'peaks', 'smoothed_peaks', 'entropy'])
+        for line in q:
+            entropies.append(np.fromstring(line['entropy'].translate(None, '[]()'), sep=','))
+            peak_heights.append(np.log(np.average(np.fromstring(line['smoothed_peaks'].translate(None, '[]()'), sep=','))))
+    return sdrs, entropies, iters, peak_heights
+
+
+def partition_sets(x, y, test_ratio):
+    x_train, x_test, y_train, y_test = cross_validation.train_test_split(x, y, test_size=test_ratio)
+
+
+def run_knn(x, y, n):
+    neigh = neighbors.KNeighborsRegressor(n_neighbors=n, weights='distance')
+    scores = cross_validation.cross_val_score(neigh, x, y, cv=10, verbose=1)
+    print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+    predictions = cross_validation.cross_val_predict(neigh, x, y, cv=10, verbose=1)
+    return predictions
+
+
+def main():
+    sdrs, ents, iters, peak_heights = read_data('reverb_sdr.txt', 'other_stats.txt')
+    X = np.array([np.append(ents[i], peak_heights[i]) for i in xrange(len(ents))])
+    #X = np.array(peak_heights).reshape(-1, 1)
+    predictions = run_knn(X, sdrs, 5)
+
+    diff = predictions - np.array(sdrs)
+
+    plt.violinplot(diff, showmeans=True, showextrema=True, showmedians=True)
+    plt.show()
+    pass
+
+
+if __name__ == '__main__':
+    main()
