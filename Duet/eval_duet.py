@@ -12,10 +12,9 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 def main():
-    # run_duet('audio/reverb_mix/', 'audio/output/reverb/', plot=True, save_sources=True, use_sdr=True, sdr_fname='reverb_sdr.txt',
-    #          fit_gmm=True, gmm_fname='reverb_gmm.txt', use_other_stats=True, stats_fname='other_stats.txt')
+    #run_duet('audio/reverb_mix/', 'audio/output/reverb/', use_other_stats=True, stats_fname='other_stats.txt')
     plot_from_txt('reverb_sdr.txt', 'reverb_gmm.txt', 'other_stats.txt', 'output/reverb_plots/', per_file=False)
-    plot_from_txt('reverb_sdr.txt', 'reverb_gmm.txt', 'other_stats.txt', 'output/reverb_plots_per_file/', per_file=True)
+    #plot_from_txt('reverb_sdr.txt', 'reverb_gmm.txt', 'other_stats.txt', 'output/reverb_plots_per_file/', per_file=True)
 
 
 def run_duet(src_dir, dest_dir, plot=False, use_sdr=False, save_sources=False, sdr_fname=None, fit_gmm=False,
@@ -121,7 +120,10 @@ def run_duet(src_dir, dest_dir, plot=False, use_sdr=False, save_sources=False, s
             smoothed_peaks = [duet.smoothed_hist[duet.peak_indices[0, 0], duet.peak_indices[1, 0]],
                               duet.smoothed_hist[duet.peak_indices[0, 1], duet.peak_indices[1, 1]]]
 
-            print [[duet.peak_indices[0, 0], duet.peak_indices[1, 0]], [duet.peak_indices[0, 1], duet.peak_indices[1, 1]]]
+            means = [duet.non_normalized_hist.mean()]
+            norm_means = [duet.hist.mean()]
+            smoothed_means = [duet.smoothed_hist.mean()]
+
 
             entropy = 0
             hist_sum = np.sum(duet.non_normalized_hist)
@@ -138,6 +140,9 @@ def run_duet(src_dir, dest_dir, plot=False, use_sdr=False, save_sources=False, s
                 a.write(str(peaks) + '\t')
                 a.write(str(smoothed_peaks) + '\t')
                 a.write(str(entropy) + '\t')
+                a.write(str(means) + '\t')
+                a.write(str(norm_means) + '\t')
+                a.write(str(smoothed_means)+'\t')
                 a.write('\n')
 
         if not os.path.exists(dest_dir):
@@ -197,7 +202,7 @@ def plot_from_txt(sdr_fname, statistic_fname, statistic2_fname, output_folder, p
 
     with open(statistic2_fname, 'r') as stat2_f:
         stats2 = {}
-        q3 = csv.DictReader(stat2_f, delimiter='\t', fieldnames=['filename', 'peaks', 'smoothed_peaks', 'entropy'])
+        q3 = csv.DictReader(stat2_f, delimiter='\t', fieldnames=['filename', 'peaks', 'smoothed_peaks', 'entropy', 'means', 'norm_means', 'smooth_means'])
         for line in q3:
             for entry in line.keys():
                 if entry is not None:
@@ -221,578 +226,643 @@ def plot_from_txt(sdr_fname, statistic_fname, statistic2_fname, output_folder, p
                     else:
                         sdr_stats[entry].append(np.fromstring(line2[entry].translate(None,'][()'), sep=' '))
 
-        plot_stats = dict()
+    plot_stats = dict()
 
-        plot_stats['numiter'] = {}
-        plot_stats['avg_bc'] = {}
-        plot_stats['max_bc'] = {}
-        plot_stats['min_bc'] = {}
-        plot_stats['bc_x'] = {}
-        plot_stats['bc_y'] = {}
-        plot_stats['avg_kl'] = {}
-        plot_stats['max_kl'] = {}
-        plot_stats['min_kl'] = {}
-        plot_stats['avg_eu'] = {}
-        plot_stats['max_eu'] = {}
-        plot_stats['min_eu'] = {}
-        plot_stats['avg_var'] = {}
-        plot_stats['max_var'] = {}
-        plot_stats['min_var'] = {}
-        plot_stats['sdr'] = {}
-        plot_stats['avg_peak'] = {}
-        plot_stats['min_peak'] = {}
-        plot_stats['max_peak'] = {}
-        plot_stats['avg_smoothed'] = {}
-        plot_stats['min_smoothed'] = {}
-        plot_stats['max_smoothed'] = {}
-        plot_stats['entropy'] = {}
+    plot_stats['numiter'] = {}
+    plot_stats['avg_bc'] = {}
+    plot_stats['max_bc'] = {}
+    plot_stats['min_bc'] = {}
+    plot_stats['bc_x'] = {}
+    plot_stats['bc_y'] = {}
+    plot_stats['avg_kl'] = {}
+    plot_stats['max_kl'] = {}
+    plot_stats['min_kl'] = {}
+    plot_stats['avg_eu'] = {}
+    plot_stats['max_eu'] = {}
+    plot_stats['min_eu'] = {}
+    plot_stats['avg_var'] = {}
+    plot_stats['max_var'] = {}
+    plot_stats['min_var'] = {}
+    plot_stats['sdr'] = {}
+    plot_stats['avg_peak'] = {}
+    plot_stats['min_peak'] = {}
+    plot_stats['max_peak'] = {}
+    plot_stats['avg_smoothed'] = {}
+    plot_stats['min_smoothed'] = {}
+    plot_stats['max_smoothed'] = {}
+    plot_stats['entropy'] = {}
+    plot_stats['means'] = {}
+    plot_stats['norm_means'] = {}
+    plot_stats['smooth_means'] = {}
 
-        for i in xrange(len(stats['filename'])):
-            mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
-            for j in plot_stats.keys():
-                if mix_name not in plot_stats[j].keys():
-                    plot_stats[j][mix_name] = []
+    for i in xrange(len(stats['filename'])):
+        mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
+        for j in plot_stats.keys():
+            if mix_name not in plot_stats[j].keys():
+                plot_stats[j][mix_name] = []
 
-        for i in xrange(len(stats['filename'])):
-            mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
-            plot_stats['numiter'][mix_name].append(float(os.path.splitext(stats['filename'][i])[0].split('-')[1]))
+    for i in xrange(len(stats['filename'])):
+        mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
+        plot_stats['numiter'][mix_name].append(float(os.path.splitext(stats['filename'][i])[0].split('-')[1]))
 
-        # pick different bc values
+    # pick different bc values
 
-        for i in xrange(len(stats['bc'])):
-            mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
-            plot_stats['avg_bc'][mix_name].append(np.average(stats['bc'][i]))
-            plot_stats['max_bc'][mix_name].append(max(stats['bc'][i]))
-            plot_stats['min_bc'][mix_name].append(min(stats['bc'][i]))
-            plot_stats['bc_x'][mix_name].append(stats['bc'][i][0])
-            plot_stats['bc_y'][mix_name].append(stats['bc'][i][1])
+    for i in xrange(len(stats['bc'])):
+        mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
+        plot_stats['avg_bc'][mix_name].append(np.average(stats['bc'][i]))
+        plot_stats['max_bc'][mix_name].append(max(stats['bc'][i]))
+        plot_stats['min_bc'][mix_name].append(min(stats['bc'][i]))
+        plot_stats['bc_x'][mix_name].append(stats['bc'][i][0])
+        plot_stats['bc_y'][mix_name].append(stats['bc'][i][1])
 
-        # pick different kl values
-        for i in xrange(len(stats['kl'])):
-            mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
-            plot_stats['avg_kl'][mix_name].append(np.average(stats['kl'][i]))
-            plot_stats['max_kl'][mix_name].append(max(stats['kl'][i]))
-            plot_stats['min_kl'][mix_name].append(min(stats['kl'][i]))
+    # pick different kl values
+    for i in xrange(len(stats['kl'])):
+        mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
+        plot_stats['avg_kl'][mix_name].append(np.average(stats['kl'][i]))
+        plot_stats['max_kl'][mix_name].append(max(stats['kl'][i]))
+        plot_stats['min_kl'][mix_name].append(min(stats['kl'][i]))
 
-        #pick different eu values
-        for i in xrange(len(stats['eu'])):
-            mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
-            plot_stats['avg_eu'][mix_name].append(np.average(stats['eu'][i]))
-            plot_stats['max_eu'][mix_name].append(max(stats['eu'][i]))
-            plot_stats['min_eu'][mix_name].append(min(stats['eu'][i]))
+    #pick different eu values
+    for i in xrange(len(stats['eu'])):
+        mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
+        plot_stats['avg_eu'][mix_name].append(np.average(stats['eu'][i]))
+        plot_stats['max_eu'][mix_name].append(max(stats['eu'][i]))
+        plot_stats['min_eu'][mix_name].append(min(stats['eu'][i]))
 
-        # pick different var values
-        for i in xrange(len(stats['var'])):
-            mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
-            plot_stats['avg_var'][mix_name].append(np.average(stats['var'][i]))
-            plot_stats['max_var'][mix_name].append(max(stats['var'][i]))
-            plot_stats['min_var'][mix_name].append(min(stats['var'][i]))
+    # pick different var values
+    for i in xrange(len(stats['var'])):
+        mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
+        plot_stats['avg_var'][mix_name].append(np.average(stats['var'][i]))
+        plot_stats['max_var'][mix_name].append(max(stats['var'][i]))
+        plot_stats['min_var'][mix_name].append(min(stats['var'][i]))
 
-        for i in xrange(len(sdr_stats['sdr'])):
-            mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
-            plot_stats['sdr'][mix_name].append(np.average(sdr_stats['sdr'][i]))
+    for i in xrange(len(sdr_stats['sdr'])):
+        mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
+        plot_stats['sdr'][mix_name].append(np.average(sdr_stats['sdr'][i]))
 
-        for i in xrange(len(stats2['peaks'])):
-            mix_name = os.path.splitext(stats2['filename'][i])[0].split('-')[0]
-            plot_stats['avg_peak'][mix_name].append(np.average(stats2['smoothed_peaks'][i]))
-            plot_stats['max_peak'][mix_name].append(max(stats2['smoothed_peaks'][i]))
-            plot_stats['min_peak'][mix_name].append(min(stats2['smoothed_peaks'][i]))
-            plot_stats['avg_smoothed'][mix_name].append(np.average(stats2['smoothed_peaks'][i]))
-            plot_stats['max_smoothed'][mix_name].append(max(stats2['smoothed_peaks'][i]))
-            plot_stats['min_smoothed'][mix_name].append(min(stats2['smoothed_peaks'][i]))
-            plot_stats['entropy'][mix_name].append(stats2['entropy'][i])
+    for i in xrange(len(stats2['peaks'])):
+        mix_name = os.path.splitext(stats2['filename'][i])[0].split('-')[0]
+        plot_stats['avg_peak'][mix_name].append(np.average(stats2['smoothed_peaks'][i]))
+        plot_stats['max_peak'][mix_name].append(max(stats2['smoothed_peaks'][i]))
+        plot_stats['min_peak'][mix_name].append(min(stats2['smoothed_peaks'][i]))
+        plot_stats['avg_smoothed'][mix_name].append(np.average(stats2['smoothed_peaks'][i]))
+        plot_stats['max_smoothed'][mix_name].append(max(stats2['smoothed_peaks'][i]))
+        plot_stats['min_smoothed'][mix_name].append(min(stats2['smoothed_peaks'][i]))
+        plot_stats['entropy'][mix_name].append(stats2['entropy'][i][0])
+        plot_stats['means'][mix_name].append(stats2['means'][i][0])
+        plot_stats['norm_means'][mix_name].append(stats2['norm_means'][i][0])
+        plot_stats['smooth_means'][mix_name].append(stats2['smooth_means'][i][0])
+
+    plot_2d(plot_stats, per_file, output_folder)
+
+    visited = ['numiter', 'sdr']
+    for j in plot_stats.keys():
+        if j in visited:
+            continue
+        visited.append(j)
+
+        for k in plot_stats.keys():
+            if k in visited:
+                continue
+
+            x = np.array([])
+            y = np.array([])
+            z = np.array([])
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            for m in plot_stats['sdr'].keys():
+                x = np.concatenate((x, plot_stats[j][m]))
+                y = np.concatenate((y, plot_stats[k][m]))
+                z = np.concatenate((z, plot_stats['sdr'][m]))
+
+            if x not in ['min_smoothed', 'min_peak', 'entropy']:
+                x = np.log(x)
+            if y not in ['min_smoothed', 'min_peak', 'entropy']:
+                y = np.log(y)
+            ax.scatter(x, y, z)
+            plt.title(j + ' vs ' +k)
+            plt.xlabel(j)
+            plt.ylabel(k)
+            plt.savefig(output_folder+'/3d/'+j+'-'+k+'.jpg')
+            plt.close()
 
 
-# region Plotting iterations versus stats
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['avg_bc'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['avg_bc'][i])
-        plt.title('avg Bhatacharyya coefficient versus number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('avg Bhatacharyya coef')
-        plt.grid(True)
-        plt.yscale('log')
-        plt.savefig(output_folder+'1.jpg')
-        plt.close()
+def plot_2d(plot_stats, per_file, output_folder):
+    # region Plotting iterations versus stats
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['avg_bc'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['avg_bc'][i])
+    plt.title('avg Bhatacharyya coefficient versus number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('avg Bhatacharyya coef')
+    plt.grid(True)
+    plt.yscale('log')
+    plt.savefig(output_folder + '1.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['max_bc'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['max_bc'][i])
-        plt.title('max Bhatacharyya coefficient versus number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('max Bhatacharyya coef')
-        plt.grid(True)
-        plt.yscale('log')
-        plt.savefig(output_folder+'2.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['max_bc'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['max_bc'][i])
+    plt.title('max Bhatacharyya coefficient versus number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('max Bhatacharyya coef')
+    plt.grid(True)
+    plt.yscale('log')
+    plt.savefig(output_folder + '2.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['min_bc'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['min_bc'][i])
-        plt.title('min Bhatacharyya coefficient versus number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min Bhatacharyya coef')
-        plt.grid(True)
-        plt.yscale('log')
-        plt.savefig(output_folder+'3.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['min_bc'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['min_bc'][i])
+    plt.title('min Bhatacharyya coefficient versus number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min Bhatacharyya coef')
+    plt.grid(True)
+    plt.yscale('log')
+    plt.savefig(output_folder + '3.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['avg_kl'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['avg_kl'][i])
-        plt.title('avg K-L divergence versus Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('avg K-L divergence')
-        plt.grid(True)
-        plt.yscale('log')
-        plt.savefig(output_folder+'4.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['avg_kl'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['avg_kl'][i])
+    plt.title('avg K-L divergence versus Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('avg K-L divergence')
+    plt.grid(True)
+    plt.yscale('log')
+    plt.savefig(output_folder + '4.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['max_kl'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['max_kl'][i])
-        plt.title('max K-L divergence versus Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('max K-L divergence')
-        plt.grid(True)
-        plt.yscale('log')
-        plt.savefig(output_folder+'5.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['max_kl'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['max_kl'][i])
+    plt.title('max K-L divergence versus Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('max K-L divergence')
+    plt.grid(True)
+    plt.yscale('log')
+    plt.savefig(output_folder + '5.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['min_kl'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['min_kl'][i])
-        plt.title('min K-L divergence versus Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min K-L divergence')
-        plt.grid(True)
-        plt.yscale('log')
-        plt.savefig(output_folder+'6.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['min_kl'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['min_kl'][i])
+    plt.title('min K-L divergence versus Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min K-L divergence')
+    plt.grid(True)
+    plt.yscale('log')
+    plt.savefig(output_folder + '6.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['avg_eu'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['avg_eu'][i])
-        plt.title('avg Euclidean Distance versus Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('avg Distance (num stdev)')
-        plt.grid(True)
-        plt.savefig(output_folder+'7.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['avg_eu'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['avg_eu'][i])
+    plt.title('avg Euclidean Distance versus Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('avg Distance (num stdev)')
+    plt.grid(True)
+    plt.savefig(output_folder + '7.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['max_eu'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['max_eu'][i])
-        plt.title('max Euclidean Distance versus Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('max Distance (num stdev)')
-        plt.grid(True)
-        plt.savefig(output_folder+'8.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['max_eu'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['max_eu'][i])
+    plt.title('max Euclidean Distance versus Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('max Distance (num stdev)')
+    plt.grid(True)
+    plt.savefig(output_folder + '8.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['min_eu'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['min_eu'][i])
-        plt.title('min Euclidean Distance versus Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min Distance (num stdev)')
-        plt.grid(True)
-        plt.savefig(output_folder+'9.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['min_eu'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['min_eu'][i])
+    plt.title('min Euclidean Distance versus Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min Distance (num stdev)')
+    plt.grid(True)
+    plt.savefig(output_folder + '9.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['avg_var'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['avg_var'][i])
-        plt.title('avg Variance versus Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('avg Variance')
-        plt.grid(True)
-        plt.savefig(output_folder+'10.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['avg_var'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['avg_var'][i])
+    plt.title('avg Variance versus Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('avg Variance')
+    plt.grid(True)
+    plt.savefig(output_folder + '10.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['max_var'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['max_var'][i])
-        plt.title('max Variance versus Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('max Variance')
-        plt.grid(True)
-        plt.savefig(output_folder+'11.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['max_var'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['max_var'][i])
+    plt.title('max Variance versus Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('max Variance')
+    plt.grid(True)
+    plt.savefig(output_folder + '11.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['min_var'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['min_var'][i])
-        plt.title('min Variance versus Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min Variance')
-        plt.grid(True)
-        plt.yscale('log')
-        plt.savefig(output_folder+'12.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['min_var'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['min_var'][i])
+    plt.title('min Variance versus Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min Variance')
+    plt.grid(True)
+    plt.yscale('log')
+    plt.savefig(output_folder + '12.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['min_peak'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['min_peak'][i])
-        plt.title('min Peak Height vs Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min peak Height')
-        plt.grid(True)
-        plt.yscale('log')
-        plt.savefig(output_folder + '29.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['min_peak'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['min_peak'][i])
+    plt.title('min Peak Height vs Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min peak Height')
+    plt.grid(True)
+    plt.yscale('log')
+    plt.savefig(output_folder + '29.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['max_peak'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['max_peak'][i])
-        plt.title('max Peak Height vs Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min peak Height')
-        plt.grid(True)
-        plt.savefig(output_folder + '30.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['max_peak'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['max_peak'][i])
+    plt.title('max Peak Height vs Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min peak Height')
+    plt.grid(True)
+    plt.savefig(output_folder + '30.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['avg_peak'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['avg_peak'][i])
-        plt.title('avg Peak Height vs Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min peak Height')
-        plt.grid(True)
-        plt.savefig(output_folder + '31.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['avg_peak'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['avg_peak'][i])
+    plt.title('avg Peak Height vs Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min peak Height')
+    plt.grid(True)
+    plt.savefig(output_folder + '31.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['min_smoothed'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['min_smoothed'][i])
-        plt.title('min smoothed Peak Height vs Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min peak Height')
-        plt.grid(True)
-        plt.savefig(output_folder + '32.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['min_smoothed'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['min_smoothed'][i])
+    plt.title('min smoothed Peak Height vs Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min peak Height')
+    plt.grid(True)
+    plt.savefig(output_folder + '32.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['max_smoothed'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['max_smoothed'][i])
-        plt.title('max smoothed Peak Height vs Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min peak Height')
-        plt.grid(True)
-        plt.savefig(output_folder + '33.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['max_smoothed'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['max_smoothed'][i])
+    plt.title('max smoothed Peak Height vs Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min peak Height')
+    plt.grid(True)
+    plt.savefig(output_folder + '33.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['avg_smoothed'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['avg_smoothed'][i])
-        plt.title('avg smoothed Peak Height vs Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('min peak Height')
-        plt.grid(True)
-        plt.savefig(output_folder + '34.jpg')
-        plt.close()
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['avg_smoothed'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['avg_smoothed'][i])
+    plt.title('avg smoothed Peak Height vs Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('min peak Height')
+    plt.grid(True)
+    plt.savefig(output_folder + '34.jpg')
+    plt.close()
 
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['entropy'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['entropy'][i])
-        plt.title('entropy vs Number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('entropy')
-        plt.grid(True)
-        plt.savefig(output_folder + '35.jpg')
-        plt.close()
-#endregion
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['entropy'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['entropy'][i])
+    plt.title('entropy vs Number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('entropy')
+    plt.grid(True)
+    plt.savefig(output_folder + '35.jpg')
+    plt.close()
+    # endregion
 
-#region Plotting stats versus sdrs
-        for i in plot_stats['numiter'].keys():
-            if per_file:
-                plt.plot(plot_stats['numiter'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['numiter'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus number of iterations')
-        plt.xlabel('Number of iterations')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.savefig(output_folder+'13.jpg')
-        plt.close()
+    # region Plotting stats versus sdrs
+    for i in plot_stats['numiter'].keys():
+        if per_file:
+            plt.plot(plot_stats['numiter'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['numiter'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus number of iterations')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.savefig(output_folder + '13.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['avg_bc'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['avg_bc'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus avg Bhatacharya Coef')
-        plt.xlabel('Bhatacharya Coef')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'14.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['avg_bc'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['avg_bc'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus avg Bhatacharya Coef')
+    plt.xlabel('Bhatacharya Coef')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '14.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['max_bc'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['max_bc'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus max Bhatacharya Coef')
-        plt.xlabel('Bhatacharya Coef')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'15.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['max_bc'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['max_bc'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus max Bhatacharya Coef')
+    plt.xlabel('Bhatacharya Coef')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '15.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['min_bc'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['min_bc'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus min Bhatacharya Coef')
-        plt.xlabel('Bhatacharya Coef')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'16.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['min_bc'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['min_bc'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus min Bhatacharya Coef')
+    plt.xlabel('Bhatacharya Coef')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '16.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['avg_kl'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['avg_kl'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus avg K-L divergence')
-        plt.xlabel('K-L divergence')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'17.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['avg_kl'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['avg_kl'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus avg K-L divergence')
+    plt.xlabel('K-L divergence')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '17.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['max_kl'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['max_kl'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus max K-L divergence')
-        plt.xlabel('K-L divergence')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'18.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['max_kl'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['max_kl'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus max K-L divergence')
+    plt.xlabel('K-L divergence')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '18.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['min_kl'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['min_kl'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus min K-L divergence')
-        plt.xlabel('K-L divergence')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'19.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['min_kl'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['min_kl'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus min K-L divergence')
+    plt.xlabel('K-L divergence')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '19.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['avg_eu'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['avg_eu'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus avg Euclidean Distance')
-        plt.xlabel('Distance (num stdev)')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'20.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['avg_eu'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['avg_eu'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus avg Euclidean Distance')
+    plt.xlabel('Distance (num stdev)')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '20.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['max_eu'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['max_eu'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus max Euclidean Distance')
-        plt.xlabel('Distance (num stdev)')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'21.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['max_eu'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['max_eu'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus max Euclidean Distance')
+    plt.xlabel('Distance (num stdev)')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '21.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['min_eu'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['min_eu'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus min Euclidean Distance')
-        plt.xlabel('Distance (num stdev)')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'22.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['min_eu'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['min_eu'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus min Euclidean Distance')
+    plt.xlabel('Distance (num stdev)')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '22.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['avg_var'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['avg_var'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus avg Variance')
-        plt.xlabel('Variance')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'23.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['avg_var'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['avg_var'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus avg Variance')
+    plt.xlabel('Variance')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '23.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['max_var'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['max_var'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus max Variance')
-        plt.xlabel('Variance')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'24.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['max_var'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['max_var'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus max Variance')
+    plt.xlabel('Variance')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '24.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['min_var'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['min_var'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus min Variance')
-        plt.xlabel('Variance')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'25.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['min_var'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['min_var'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus min Variance')
+    plt.xlabel('Variance')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '25.jpg')
+    plt.close()
 
-        for i in stats['bc']:
-            plt.scatter(i[0], i[1])
-        plt.title('bcdelay vs bcattn')
-        plt.xlabel('bcdelay')
-        plt.ylabel('bcattn')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder+'26.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['bc_x'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['bc_x'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus Bhattacharya coef delay')
+    plt.xlabel('BC_delay')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '27.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['bc_x'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['bc_x'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus Bhattacharya coef delay')
-        plt.xlabel('BC_delay')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder + '27.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['bc_y'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['bc_y'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus Bhattacharya coef attn')
+    plt.xlabel('BC_attn')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '28.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['bc_y'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['bc_y'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus Bhattacharya coef attn')
-        plt.xlabel('BC_attn')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder + '28.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['min_peak'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['min_peak'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus min Peak Height')
+    plt.xlabel('Peak Height')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '36.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['min_peak'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['min_peak'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus min Peak Height')
-        plt.xlabel('Peak Height')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder + '36.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['max_peak'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['max_peak'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus max Peak Height')
+    plt.xlabel('Peak Height')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '37.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['max_peak'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['max_peak'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus max Peak Height')
-        plt.xlabel('Peak Height')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder + '37.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['avg_peak'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['avg_peak'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus avg Peak Height')
+    plt.xlabel('Peak Height')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '38.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['avg_peak'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['avg_peak'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus avg Peak Height')
-        plt.xlabel('Peak Height')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder + '38.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['min_smoothed'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['min_smoothed'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus min smoothed Peak Height')
+    plt.xlabel('Peak Height')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '39.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['min_smoothed'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['min_smoothed'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus min smoothed Peak Height')
-        plt.xlabel('Peak Height')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder + '39.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['max_smoothed'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['max_smoothed'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus max smoothed Peak Height')
+    plt.xlabel('Peak Height')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '40.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['max_smoothed'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['max_smoothed'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus max smoothed Peak Height')
-        plt.xlabel('Peak Height')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder + '40.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['avg_smoothed'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['avg_smoothed'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus avg smoothed Peak Height')
+    plt.xlabel('Peak Height')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.xscale('log')
+    plt.savefig(output_folder + '41.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['avg_smoothed'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['avg_smoothed'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus avg smoothed Peak Height')
-        plt.xlabel('Peak Height')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.xscale('log')
-        plt.savefig(output_folder + '41.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['entropy'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['entropy'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus entropy')
+    plt.xlabel('Entropy')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.savefig(output_folder + '42.jpg')
+    plt.close()
 
-        for i in plot_stats['sdr'].keys():
-            if per_file:
-                plt.plot(plot_stats['entropy'][i], plot_stats['sdr'][i])
-            plt.scatter(plot_stats['entropy'][i], plot_stats['sdr'][i])
-        plt.title('SDR versus entropy')
-        plt.xlabel('Entropy')
-        plt.ylabel('SDR')
-        plt.grid(True)
-        plt.savefig(output_folder + '42.jpg')
-        plt.close()
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['means'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['means'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus mean')
+    plt.xlabel('mean')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.savefig(output_folder + '43.jpg')
+    plt.close()
+
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['norm_means'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['norm_means'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus normalized mean')
+    plt.xlabel('mean')
+    plt.ylabel('SDR')
+    plt.xscale('log')
+    plt.grid(True)
+    plt.savefig(output_folder + '44.jpg')
+    plt.close()
+
+    for i in plot_stats['sdr'].keys():
+        if per_file:
+            plt.plot(plot_stats['smooth_means'][i], plot_stats['sdr'][i])
+        plt.scatter(plot_stats['smooth_means'][i], plot_stats['sdr'][i])
+    plt.title('SDR versus smoothed mean')
+    plt.xlabel('mean')
+    plt.ylabel('SDR')
+    plt.grid(True)
+    plt.savefig(output_folder + '45.jpg')
+    plt.close()
 
 
 def is_outlier(points, thresh=3.5):
