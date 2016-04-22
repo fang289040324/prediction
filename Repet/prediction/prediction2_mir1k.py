@@ -9,24 +9,24 @@ from os.path import join
 import matplotlib.pyplot as plt
 
 def main():
-    pickle_folder = '../pickles_no_rms'
-    pickle_folders_to_load = [f for f in os.listdir(pickle_folder) if os.path.isdir(join(pickle_folder, f))]
+    pickle_folder = '../mir_1k/pickles'
+    pickle_folders_to_load = [f for f in os.listdir(pickle_folder) if '__beat_spec.pick' in f]
     pickle_folders_to_load = sorted(pickle_folders_to_load)
-    pickle_folders_to_load = [p for p in pickle_folders_to_load if 'drums1__' not in p]
 
     sdr_type = 'background'
 
     fits = []
     sdrs = []
     for pick in pickle_folders_to_load:
-        beat_spec_name = join(pickle_folder, pick, pick + '__beat_spec.pick')
-        beat_spec = pickle.load(open(beat_spec_name, 'rb'))
+        pick = pick.replace('__beat_spec.pick', '')
+        beat_spec_path = join(pickle_folder, pick + '__beat_spec.pick')
+        beat_spec = pickle.load(open(beat_spec_path, 'rb'))
 
         entropy, log_mean = beat_spectrum_prediction_statistics(beat_spec)
         fit_X = [entropy, log_mean]
         fits.append(fit_X)
 
-        sdrs_name = join(pickle_folder, pick, pick + '__sdrs.pick')
+        sdrs_name = join(pickle_folder, pick + '__sdrs.pick')
         sdr_vals = pickle.load(open(sdrs_name, 'rb'))
         cur_sdr = sdr_vals[sdr_type][0]
         sdrs.append(cur_sdr)
@@ -35,7 +35,7 @@ def main():
     sdrs = np.array(sdrs).reshape(-1, 1)
     knn = neighbors.KNeighborsRegressor(5, weights='distance')
     scores = cross_validation.cross_val_predict(knn, fits, sdrs, cv=10, verbose=1)
-    print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean() - sdrs.mean(), scores.std() * 2))
+    print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
     # knn.fit(fits, sdrs)
 
 

@@ -8,6 +8,7 @@ import nussl
 import librosa
 import mir_eval
 
+
 number_of_seed_files = 2
 speed = 'speed'
 stft_nudge = 'stft_nudge'
@@ -68,6 +69,7 @@ def generate_all_files():
         if len(fgnd) < int(max_file_length * fgnd.sample_rate):
             fgnd.zero_pad(0, (int(max_file_length * fgnd.sample_rate) - len(fgnd)))
             fgnd.truncate_seconds(int(max_file_length))
+            fgnd = roll_off_end(fgnd)
             fgnd.write_audio_to_file(join(foreground_input_folder, fgnd_file), verbose=True)
 
         fg_rms = fgnd.rms()
@@ -81,25 +83,26 @@ def generate_all_files():
 
             if os.path.exists(combined_path):
                 print 'Skipping {0} & {1} because they\'re already combined :)'.format(fgnd_file, bkgd_file)
-                # continue
+                continue
 
             path = join(bkgnd_output_folder, bkgd_file)
             try:
                 bkgd = nussl.AudioSignal(path)
                 bg_rms = bkgd.rms()
 
-                perturb_type = [p for p in global_perturbations if p in bkgd.file_name][0]
-                if perturb_type not in volume_perturbations:
-                    if fg_rms > bg_rms:
-                        fgnd.audio_data *= bg_rms / fg_rms
-                    else:
-                        bkgd.audio_data *= fg_rms / bg_rms
+                # perturb_type = [p for p in global_perturbations if p in bkgd.file_name][0]
+                # if perturb_type not in volume_perturbations:
+                #     if fg_rms > bg_rms:
+                #         fgnd.audio_data *= bg_rms / fg_rms
+                #     else:
+                #         bkgd.audio_data *= fg_rms / bg_rms
 
                 combined = bkgd + fgnd
             except Exception, e:
                 print('Couldn\'t read {}'.format(path))
                 continue
 
+            combined = roll_off_end(combined)
             combined.write_audio_to_file(combined_path, sample_rate=nussl.constants.DEFAULT_SAMPLE_RATE, verbose=True)
 
 
@@ -135,6 +138,7 @@ def create_pure_looped_file(audio_signal, max_file_length, file_name, output_fol
 
     newPath = join(output_folder, splitext(file_name)[0] + '_' + none + '_0.0' + splitext(file_name)[1])
     audio_signal.to_mono()
+    audio_signal = roll_off_end(audio_signal)
     audio_signal.write_audio_to_file(newPath)
 
     return audio_signal
@@ -173,6 +177,8 @@ def swap_stft_values(audio_signal, output_folder, max_duration):
         audio_sig_copy.stft_data = stft.reshape(audio_signal.stft_data.shape)
         audio_sig_copy.istft()
         audio_sig_copy.truncate_seconds(max_duration)
+
+        audio_sig_copy = roll_off_end(audio_sig_copy)
         audio_sig_copy.write_audio_to_file(output_path, verbose=True)
 
 
@@ -193,6 +199,8 @@ def add_noise_time(audio_signal, output_folder, max_duration):
 
         audio_signal_copy = copy.copy(audio_signal)
         audio_signal_copy.audio_data += num * np.random.rand(audio_signal_copy.audio_data.shape[1])
+
+        audio_signal_copy = roll_off_end(audio_signal_copy)
         audio_signal_copy.write_audio_to_file(output_path, verbose=True)
 
 
@@ -224,6 +232,8 @@ def zero_stft_values(audio_signal, output_folder, max_duration):
         audio_sig_copy.stft_data = stft.reshape(audio_signal.stft_data.shape)
         audio_sig_copy.istft()
         audio_sig_copy.truncate_seconds(max_duration)
+
+        audio_sig_copy = roll_off_end(audio_sig_copy)
         audio_sig_copy.write_audio_to_file(output_path, verbose=True)
 
 def zero_stft_values_no_replacement(audio_signal, output_folder, max_duration):
@@ -243,8 +253,8 @@ def zero_stft_values_no_replacement(audio_signal, output_folder, max_duration):
 
         if os.path.exists(output_path):
             print 'Skipping {} because it exists :)'.format(file_name)
-            # continue
-            print 'redoing {}'.format(file_name)
+            continue
+            # print 'redoing {}'.format(file_name)
 
         beg = int((num-step) * len(perm))
         end = int(num * len(perm))
@@ -255,6 +265,8 @@ def zero_stft_values_no_replacement(audio_signal, output_folder, max_duration):
         audio_sig_copy.stft_data = stft.reshape(audio_sig_copy.stft_data.shape)
         audio_sig_copy.istft()
         audio_sig_copy.truncate_seconds(max_duration)
+
+        audio_sig_copy = roll_off_end(audio_sig_copy)
         audio_sig_copy.write_audio_to_file(output_path, verbose=True)
 
 def add_noise_stft_values(audio_signal, output_folder, max_duration):
@@ -285,6 +297,8 @@ def add_noise_stft_values(audio_signal, output_folder, max_duration):
         audio_sig_copy.stft_data = stft.reshape(audio_signal.stft_data.shape)
         audio_sig_copy.istft()
         audio_sig_copy.truncate_seconds(max_duration)
+
+        audio_sig_copy = roll_off_end(audio_sig_copy)
         audio_sig_copy.write_audio_to_file(output_path, verbose=True)
 
 def add_noise_stft_values_no_replacement(audio_signal, output_folder, max_duration):
@@ -317,6 +331,8 @@ def add_noise_stft_values_no_replacement(audio_signal, output_folder, max_durati
         audio_sig_copy.stft_data = stft.reshape(audio_signal.stft_data.shape)
         audio_sig_copy.istft()
         audio_sig_copy.truncate_seconds(max_duration)
+
+        audio_sig_copy = roll_off_end(audio_sig_copy)
         audio_sig_copy.write_audio_to_file(output_path, verbose=True)
 
 def create_looped_file_stft_nudge(audio_signal, max_file_length, file_name, output_folder):
@@ -349,9 +365,6 @@ def create_looped_file_stft_nudge(audio_signal, max_file_length, file_name, outp
                 shifted = shifted
 
 
-
-
-
 def create_looped_file_speed_change(audio_signal, max_file_length, file_name, output_folder):
     max_samples = int(max_file_length * audio_signal.sample_rate)
     audio_signal_copy = copy.copy(audio_signal)
@@ -366,6 +379,7 @@ def create_looped_file_speed_change(audio_signal, max_file_length, file_name, ou
         if os.path.exists(output_path):
             print 'Skipping speed variation of {} because it exists :)'.format(file_name)
             continue
+            # print 'redoing {}'.format(file_name)
 
         audio_signal_speed = copy.copy(audio_signal)
         output = np.array(())
@@ -380,6 +394,7 @@ def create_looped_file_speed_change(audio_signal, max_file_length, file_name, ou
         audio_signal_copy.audio_data = output
         audio_signal_copy.truncate_samples(max_samples)
 
+        audio_signal_copy = roll_off_end(audio_signal_copy)
         audio_signal_copy.write_audio_to_file(output_path, verbose=True)
 
 
@@ -415,14 +430,13 @@ def run_repet_and_graph_sdrs(mix_folder, bg_folder, fg_folder):
             # sdr_dict[perturb_type]['name'] = fg_stem + ' ' + bg_stem
             sdr_dict[perturb_type][perturb_val] = []
 
-        if backgrounds:
-            mir_eval.separation.validate(background.audio_data, est_bg.audio_data)
-            sdr_vals = zip(*mir_eval.separation.bss_eval_sources(background.audio_data, est_bg.audio_data))[0]
-        else:
-            mir_eval.separation.validate(foreground.audio_data, est_fg.audio_data)
-            sdr_vals = zip(*mir_eval.separation.bss_eval_sources(foreground.audio_data, est_fg.audio_data))[0]
+        estimated = np.array([est_bg.get_channel(1), est_fg.get_channel(1)])
+        true_srcs = np.array([background.get_channel(1), foreground.get_channel(1)])
 
-        sdr = sdr_vals[0]
+        mir_eval.separation.validate(true_srcs, estimated)
+        bss_vals = mir_eval.separation.bss_eval_sources(true_srcs, estimated)
+
+        sdr = bss_vals[0][0]
         sdr_dict[perturb_type][perturb_val].append(sdr)
 
     for p_name, dict in sdr_dict.iteritems():
@@ -442,7 +456,7 @@ def run_repet_and_graph_sdrs(mix_folder, bg_folder, fg_folder):
         plt.xlabel('perturbation coefficient')
         plt.ylabel('SDR (dB)')
         plt.subplots_adjust(bottom=0.15)
-        plt.savefig(out + 'dataset_correlation_background_{}.png'.format(p_name))
+        plt.savefig(out + 'gen_background_new_bss_{}.png'.format(p_name))
 
 def make_combined_path(folder, fg_name, bg_name):
     name = fg_name + '__' + bg_name + '.wav'
@@ -464,7 +478,14 @@ def get_wav_paths_in_folder(folder):
     return [join(folder, f) for f in os.listdir(folder) if isfile(join(folder, f))
             and splitext(join(folder, f))[1] == '.wav']
 
+def roll_off_end(audio_signal):
+    n = 16384.0
+    curve = np.arange(0.0, np.pi/2, np.pi/n/2)
+    curve = curve[::-1]
+    audio_signal.audio_data[:, -n:] *= curve
+    return audio_signal
+
 
 if __name__ == '__main__':
     generate_all_files()
-    run_repet_and_graph_sdrs(mixture_output_folder, bkgnd_output_folder, foreground_input_folder)
+    # run_repet_and_graph_sdrs(mixture_output_folder, bkgnd_output_folder, foreground_input_folder)

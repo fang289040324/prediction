@@ -23,7 +23,7 @@ base_folder = '../generated_audio/'
 mixture_folder = base_folder + 'test/'
 foreground_folder = base_folder + 'foreground/'
 background_folder = base_folder + 'test_background/'
-out = '../pickles/'
+out = '../pickles_rolloff/'
 
 def save_info():
     pool = Pool()
@@ -78,15 +78,17 @@ def run_repet_and_pickle(paths):
     true_fg.truncate_samples(max_dur)
     true_bg.truncate_samples(max_dur)
 
-    mir_eval.separation.validate(true_fg.audio_data, repet_fg.audio_data)
-    fg_sdr = zip(*mir_eval.separation.bss_eval_sources(true_fg.audio_data, repet_fg.audio_data))[0]
+    estimated = np.array([repet_bg.get_channel(1), repet_fg.get_channel(1)])
+    true_srcs = np.array([true_bg.get_channel(1), true_fg.get_channel(1)])
 
-    mir_eval.separation.validate(true_bg.audio_data, repet_bg.audio_data)
-    bg_sdr = zip(*mir_eval.separation.bss_eval_sources(true_bg.audio_data, repet_bg.audio_data))[0]
+    mir_eval.separation.validate(true_srcs, estimated)
+    bss_vals = mir_eval.separation.bss_eval_sources(true_srcs, estimated)
+
+
+    sdr_dict = {'foreground': {'sdr': bss_vals[0][0], 'sir': bss_vals[1][0], 'sar': bss_vals[2][0]},
+                'background': {'sdr': bss_vals[0][1], 'sir': bss_vals[1][1], 'sar': bss_vals[2][1]}}
 
     should_pickle_sdr = True
-    sdr_dict = {'foreground': fg_sdr, 'background': bg_sdr}
-
     if should_pickle_sdr:
         pickle.dump(sdr_dict, open(join(mixture_pickle_path, '{}__sdrs.pick'.format(mixture_pickle_name)), 'wb'))
         print 'pickled {} sdrs'.format(mixture_file)

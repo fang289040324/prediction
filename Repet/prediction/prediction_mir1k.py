@@ -9,10 +9,9 @@ from os.path import join
 import matplotlib.pyplot as plt
 
 def main():
-    pickle_folder = '../pickles_no_rms'
-    pickle_folders_to_load = [f for f in os.listdir(pickle_folder) if os.path.isdir(join(pickle_folder, f))]
+    pickle_folder = '../mir_1k/pickles'
+    pickle_folders_to_load = [f for f in os.listdir(pickle_folder) if '__beat_spec.pick' in f]
     pickle_folders_to_load = sorted(pickle_folders_to_load)
-    # pickle_folders_to_load = [p for p in pickle_folders_to_load if 'drums1__' not in p]
 
     percent_test = 0.15
     n_test_examples = int(len(pickle_folders_to_load) * percent_test)
@@ -35,14 +34,15 @@ def main():
         fits = []
         sdrs = []
         for pick in train_pickles:
-            beat_spec_name = join(pickle_folder, pick, pick + '__beat_spec.pick')
+            pick = pick.replace('__beat_spec.pick', '')
+            beat_spec_name = join(pickle_folder, pick + '__beat_spec.pick')
             beat_spec = pickle.load(open(beat_spec_name, 'rb'))
 
             entropy, log_mean = beat_spectrum_prediction_statistics(beat_spec)
             fit_X = [entropy, log_mean]
             fits.append(fit_X)
 
-            sdrs_name = join(pickle_folder, pick, pick + '__sdrs.pick')
+            sdrs_name = join(pickle_folder, pick + '__sdrs.pick')
             sdr_vals = pickle.load(open(sdrs_name, 'rb'))
             cur_sdr = sdr_vals[sdr_type][0]
             sdrs.append(cur_sdr)
@@ -54,13 +54,14 @@ def main():
         diffs = []
         scores = []
         for pick in test_pickles:
-            beat_spec_name = join(pickle_folder, pick, pick + '__beat_spec.pick')
+            pick = pick.replace('__beat_spec.pick', '')
+            beat_spec_name = join(pickle_folder, pick + '__beat_spec.pick')
             beat_spec = pickle.load(open(beat_spec_name, 'rb'))
             entropy, log_mean = beat_spectrum_prediction_statistics(beat_spec)
 
             fit_X = np.array([entropy, log_mean], ndmin=2)
 
-            sdrs_name = join(pickle_folder, pick, pick + '__sdrs.pick')
+            sdrs_name = join(pickle_folder, pick + '__sdrs.pick')
             sdr_vals = pickle.load(open(sdrs_name, 'rb'))
             cur_sdr = sdr_vals[sdr_type][0]
 
@@ -73,11 +74,11 @@ def main():
     # plt.boxplot(all_diffs, vert=True)
     plt.violinplot(all_diffs)
     plt.grid(axis='y')
-    plt.title('Delta KNN predicted SDR & true SDR')
+    plt.title('delta KNN pred SDR and true SDR - MIR1K')
     plt.ylabel('True SDR - Predicted SDR (dB)')
     plt.xlabel('Run #')
     plt.xticks(range(1, 6), [str(i) for i in range(1, 6)])
-    plt.savefig('violin_plot_trials_no_rms.png')
+    plt.savefig('violin_plot_n_neighbors_mir1k.png')
 
     i = 1
     for diff_list in all_diffs:
@@ -93,10 +94,7 @@ def beat_spectrum_prediction_statistics(beat_spectrum):
     beat_spec_norm = beat_spectrum / np.max(beat_spectrum)
 
     entropy = - sum(p * np.log(p) for p in np.abs(beat_spec_norm)) / len(beat_spec_norm)
-    # log_mean = np.log(np.mean(beat_spectrum[1:]))
-    log_mean = np.log(np.mean(beat_spectrum[1:] / np.max(beat_spectrum[1:])))
-
-
+    log_mean = np.log(np.mean(beat_spectrum[1:]))
     # beat_spectrum = beat_spectrum[:1]
     # beat_spec_norm = beat_spectrum / np.max(beat_spectrum)
     #
