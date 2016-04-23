@@ -9,8 +9,8 @@ from mpl_toolkits.mplot3d import Axes3D
 def main():
     out = '../analysis_output/beat_spec_all'
     out = '../analysis_output'
-    pickle_folder = '../pickles_no_rms/'
-    pickle_folders_to_load = [f for f in os.listdir(pickle_folder)]
+    pickle_folder = '../mir_1k/pickles'
+    pickle_folders_to_load = [f for f in os.listdir(pickle_folder) if '__beat_spec.pick' in f]
     pickle_folders_to_load = sorted(pickle_folders_to_load)
 
     sdr_type = 'background'
@@ -29,26 +29,23 @@ def main():
     ents = []
     mean = []
     for pick in pickle_folders_to_load:
-        # pick = pick.replace('__beat_spec.pick', '')
+        pick = pick.replace('__beat_spec.pick', '')
 
-        sdrs_name = join(pickle_folder, pick, pick + '__sdrs.pick')
+        sdrs_name = join(pickle_folder, pick + '__sdrs.pick')
         sdr_vals = pickle.load(open(sdrs_name, 'rb'))
         cur_sdr = sdr_vals[sdr_type][0]
         # sdrs[perturb_type].append(cur_sdr)
         sdrs.append(cur_sdr)
 
-        beat_spec_name = join(pickle_folder, pick, pick + '__beat_spec.pick')
-        beat_spec = pickle.load(open(beat_spec_name, 'rb'))
+        beat_spec_path = join(pickle_folder, pick + '__beat_spec.pick')
+        beat_spec = pickle.load(open(beat_spec_path, 'rb'))
 
 
         # dct = scipy.fftpack.dct(beat_spec)
         # dct_norm = np.abs(dct / np.max(dct))
         beat_spec_norm = beat_spec / np.max(beat_spec)
-        beat_spec_norm1 = beat_spec[1:] / np.max(beat_spec[1:])
-        mean.append(np.log(np.mean(beat_spec_norm1)))
-        # mean.append(np.log(np.mean(beat_spec[1:] / np.max(beat_spec[1:]))))
+        mean.append(np.log(np.mean(beat_spec[1:])))
         entropy = - sum(p * np.log(p) for p in np.abs(beat_spec_norm)) / len(beat_spec_norm)
-        entropy = np.exp2(entropy)
         ents.append(entropy)
         # ents[perturb_type].append(entropy)
 
@@ -81,10 +78,10 @@ def main():
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(ents, mean, sdrs, marker='.')
     ax.set_xlabel('entropy')
-    ax.set_ylabel('log_mean')
+    ax.set_ylabel('max')
     ax.set_zlabel('sdr (dB)')
 
-    plt.title('Entropy of beat spec & log_max (1st excl) & SDRs (MIR1K)')
+    plt.title('Entropy of beat spectrum norm & max (1st excluded) vs. SDRs')
     plt.savefig(join(out, 'entropy_max_1inc_sdrs_3d_1.png'))
 
 

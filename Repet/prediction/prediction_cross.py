@@ -9,25 +9,29 @@ from os.path import join
 import matplotlib.pyplot as plt
 
 def main():
-    pickle_folder = '../pickles_no_rms'
+    pickle_folder = '../pickles_rolloff'
     pickle_folders_to_load = [f for f in os.listdir(pickle_folder) if os.path.isdir(join(pickle_folder, f))]
     pickle_folders_to_load = sorted(pickle_folders_to_load)
     # pickle_folders_to_load = [p for p in pickle_folders_to_load if 'drums1__' not in p]
 
-    percent_test = 0.15
-    n_test_examples = int(len(pickle_folders_to_load) * percent_test)
-    print str(len(pickle_folders_to_load) - n_test_examples), 'training, ', str(n_test_examples), 'test'
+    print str(len(pickle_folders_to_load)), 'total'
     num_runs = 5
-    sdr_type = 'background'
+    fg_or_bg = 'background'
+    sdr_type = 'sdr'
 
     all_diffs = []
     neighbor_mult = 2
 
-    for run in range(num_runs):
-        print 'Doing run ', run + 1
-        perm = np.random.permutation(len(pickle_folders_to_load))
-        test_pickles = [pickle_folders_to_load[i] for i in perm[:int(len(perm) * percent_test)]]
-        train_pickles = [pickle_folders_to_load[i] for i in perm[int(len(perm) * percent_test):]]
+    n_folds = 10
+    perm = np.random.permutation(len(pickle_folders_to_load))
+    folds = np.array_split(perm, n_folds)
+
+    run = 1
+    for fold_indices in folds:
+        print 'Doing run ', run
+
+        test_pickles = [pickle_folders_to_load[i] for i in fold_indices]
+        train_pickles = [pickle_folders_to_load[i] for i in perm if i not in fold_indices]
 
         n_neighbors = (run + 1) * neighbor_mult
         knn = neighbors.KNeighborsRegressor(5, weights='distance')
@@ -44,7 +48,7 @@ def main():
 
             sdrs_name = join(pickle_folder, pick, pick + '__sdrs.pick')
             sdr_vals = pickle.load(open(sdrs_name, 'rb'))
-            cur_sdr = sdr_vals[sdr_type][0]
+            cur_sdr = sdr_vals[fg_or_bg][sdr_type]
             sdrs.append(cur_sdr)
 
         fits = np.array(fits)
@@ -62,32 +66,47 @@ def main():
 
             sdrs_name = join(pickle_folder, pick, pick + '__sdrs.pick')
             sdr_vals = pickle.load(open(sdrs_name, 'rb'))
-            cur_sdr = sdr_vals[sdr_type][0]
+            cur_sdr = sdr_vals[fg_or_bg][sdr_type]
 
             guess = knn.predict(fit_X)[0][0]
 
             diffs.append(cur_sdr - guess)
 
         all_diffs.append(np.array(diffs))
+        run += 1
 
     # plt.boxplot(all_diffs, vert=True)
-    plt.violinplot(all_diffs)
-    plt.grid(axis='y')
-    plt.title('Delta KNN predicted SDR & true SDR')
-    plt.ylabel('True SDR - Predicted SDR (dB)')
-    plt.xlabel('Run #')
-    plt.xticks(range(1, 6), [str(i) for i in range(1, 6)])
-    plt.savefig('violin_plot_trials_no_rms.png')
+    plt.style.use('bmh')
+    # all_diffs = np.array(all_diffs).flatten()
+    # plt.violinplot(all_diffs)
+    plt.hist(all_diffs, histtype='stepfilled', stacked=True, alpha=0.8, bins=30)
+    # plt.grid(axis='y')
+    plt.title('Generated data histogram')
+    plt.xlabel('True SDR $-$ Predicted SDR (dB)')
+    # plt.xlabel('Run #')
+    # plt.xticks(range(1, n_folds+1), [str(i) for i in range(1, n_folds+1)])
+    plt.savefig('histogram_gen_overlayed_bss_cross_back.png')
 
+    mean, std1, std2 = [], [], []
     i = 1
     for diff_list in all_diffs:
         std = np.std(diff_list)
-        print 'Number neighbors = ', str(i*neighbor_mult)
+        mean.append(np.mean(diff_list))
+        std1.append(std)
+        per = float(sum([1 for n in diff_list if np.abs(n) >= 2 * std]))  / float(len(diff_list)) * 100
+        std2.append(per)
+        print 'Run ', str(i)
         print 'Mean = {0:.2f} dB'.format(np.mean(diff_list)), ' Std. Dev. = {0:.2f} dB'.format(std),
         print ' Min = {0:.2f} dB'.format(np.min(diff_list)), ' Max = {0:.2f} dB'.format(np.max(diff_list)),
-        print ' ==== % more than 2 std = {0:.2f}%'.format(float(sum([1 for n in diff_list if np.abs(n) >= 2 * std]))
-                                                     / float(len(diff_list)) * 100)
+        print ' ==== % more than 2 std = {0:.2f}%'.format(per)
         i += 1
+
+    print '=' * 40
+    print 'Avg. Mean = {0:.2f} dB'.format(np.mean(mean)), 'Avg. Std. Dev = {0:.2f} dB'.format(np.mean(std1)),
+    print 'Avg. % more than 2 std = {0:.2f}%'.format(np.mean(std2))
+
+    print 'max =', np.max(np.array(all_diffs)), ' min =', np.min(np.array(all_diffs))
+
 
 def beat_spectrum_prediction_statistics(beat_spectrum):
     beat_spec_norm = beat_spectrum / np.max(beat_spectrum)

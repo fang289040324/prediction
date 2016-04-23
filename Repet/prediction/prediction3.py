@@ -9,7 +9,7 @@ from os.path import join
 import matplotlib.pyplot as plt
 
 def main():
-    pickle_folder = '../pickles_no_rms'
+    pickle_folder = '../pickles_rolloff'
     pickle_folders_to_load = [f for f in os.listdir(pickle_folder) if os.path.isdir(join(pickle_folder, f))]
     pickle_folders_to_load = sorted(pickle_folders_to_load)
     # pickle_folders_to_load = [p for p in pickle_folders_to_load if 'drums1__' not in p]
@@ -82,7 +82,7 @@ def main():
     i = 1
     for diff_list in all_diffs:
         std = np.std(diff_list)
-        print 'Number neighbors = ', str(i*neighbor_mult)
+        print 'Run # ', str(i)
         print 'Mean = {0:.2f} dB'.format(np.mean(diff_list)), ' Std. Dev. = {0:.2f} dB'.format(std),
         print ' Min = {0:.2f} dB'.format(np.min(diff_list)), ' Max = {0:.2f} dB'.format(np.max(diff_list)),
         print ' ==== % more than 2 std = {0:.2f}%'.format(float(sum([1 for n in diff_list if np.abs(n) >= 2 * std]))
@@ -93,10 +93,7 @@ def beat_spectrum_prediction_statistics(beat_spectrum):
     beat_spec_norm = beat_spectrum / np.max(beat_spectrum)
 
     entropy = - sum(p * np.log(p) for p in np.abs(beat_spec_norm)) / len(beat_spec_norm)
-    # log_mean = np.log(np.mean(beat_spectrum[1:]))
-    log_mean = np.log(np.mean(beat_spectrum[1:] / np.max(beat_spectrum[1:])))
-
-
+    log_mean = np.log(np.mean(beat_spectrum[1:]))
     # beat_spectrum = beat_spectrum[:1]
     # beat_spec_norm = beat_spectrum / np.max(beat_spectrum)
     #
