@@ -7,6 +7,7 @@ import scipy.signal
 from nussl import AudioMix
 import pickle
 import random
+import itertools
 
 
 def generate_dry_mixtures(src_dir, dest_dir, attn1, attn2):
@@ -65,6 +66,18 @@ def generate_reverb_mixtures(src_dir, ir_dir, dest_dir, iter_range):
         for h in os.listdir(ir_dir):
             generate_reverb(src_dir + f, ir_dir + h,
                             dest_dir+os.path.splitext(f)[0] + '_' + os.path.splitext(h)[0] +'.wav', iter_range)
+
+
+def generate_pan_mixtures(src_dir, dest_dir, rel_attn_range):
+
+    if not os.path.exists(dest_dir):
+        os.mkdir(dest_dir)
+
+    for f in itertools.combinations(os.listdir(src_dir), 2):
+        for a in rel_attn_range:
+            generate_mixture(src_dir+f[0], src_dir+f[1],
+                             dest_dir + os.path.splitext(f[0])[0] + '+' + os.path.splitext(f[1])[0] + '_'+str(a)+'.wav',
+                             -a, a)
 
 
 def generate_attenuation_varied_mixtures(seed_dir, dest_dir, attenuate_amounts):
@@ -133,10 +146,12 @@ def generate_mixture(src1, src2, fname, attn1, attn2):
     if sr1 != sr2:
         raise ValueError("Both sources muse have same sample rate")
 
+    attn1 = float(attn1 + 1) / 2
+    attn2 = float(attn2 + 1) / 2
     sample1 = data1[0:10 * sr1]
     sample2 = data2[0:10 * sr1]
-    left = sample1 + sample2
-    right = attenuate(sample1, attn1) + attenuate(sample2, attn2)
+    left = attenuate(sample1, attn1) + attenuate(sample2, attn2)
+    right = attenuate(sample1, 1-attn1) + attenuate(sample2, 1-attn2)
 
     signal = np.vstack((left, right))
     scipy.io.wavfile.write(fname, sr1, signal.T)
@@ -189,10 +204,12 @@ def add_reverb(signal, impulse_response):
 
 
 def main():
-    generate_dry_mixtures('audio/seed/', 'audio/mix/', .5, -.5)
-    # #generate_attenuation_varied_mixtures('audio/seed/', 'audio/mix_attn/', [3])
-    # #generate_impulse_responses('audio/IR/')
-    generate_reverb_mixtures('audio/mix/', 'audio/IR/downloaded/', 'audio/reverb_mix/', 5)
+    #generate_dry_mixtures('audio/seed/', 'audio/mix/', .5, -.5)
+    #generate_attenuation_varied_mixtures('audio/seed/', 'audio/mix_attn/', [3])
+    #generate_impulse_responses('audio/IR/')
+    #generate_reverb_mixtures('audio/mix/', 'audio/IR/downloaded/', 'audio/reverb_mix/', 5)
+    generate_pan_mixtures('audio/seed/', 'audio/pan_mix/', [0.0, 0.125, .25, 0.375, 0.50])
+    #generate_reverb_mixtures('audio/pan_mix/', 'audio/IR/downloaded/', 'audio/reverb_pan_mix/', 5)
 
 
 def delay(data, delay):

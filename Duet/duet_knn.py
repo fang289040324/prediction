@@ -32,7 +32,17 @@ def run_svm(x, y):
 def main():
     stats = make_dicts('reverb_sdr.txt', 'other_stats.txt', 'reverb_gmm.txt')
     #do_all_pairs(stats)
-    do_all_n(stats, 7)
+    #do_all_n(stats, 7)
+
+    keys = ['min_var', 'max_var', 'avg_eu', 'smooth_means', 'norm_means']
+
+    x = np.array([np.array(stats['entropy'][i]) for i in xrange(len(stats['sdr']))])
+    for k in keys:
+        x = np.array([np.append(x[j], np.log(stats[k][j] + 0.0001)) for j in xrange(len(stats['sdr']))])
+    predictions = run_knn(x, stats['sdr'],10)
+    diff = predictions - np.array(stats['sdr'])
+    plt.hist(diff, bins=20)
+    plt.show()
 
 
 def do_all_n(stats, n):
