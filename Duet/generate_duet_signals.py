@@ -165,9 +165,12 @@ def generate_reverb(signal, reverb, fname, iter_range):
         raise ValueError("Impulse Response must have same sample rate as signal")
 
     prev_data = data
-    for i in iter_range:
-        mix = add_reverb(prev_data.T, data_ir.T)
-        prev_data = np.copy(mix).T
+    for i in xrange(0, iter_range+1):
+        if i > 0:
+            mix = add_reverb(prev_data.T, data_ir.T)
+            prev_data = np.copy(mix).T
+        else:
+            mix = data.T
         if not os.path.exists(os.path.splitext(fname)[0]+'-'+str(i)+'.wav'):
             scipy.io.wavfile.write(os.path.splitext(fname)[0]+'-'+str(i)+'.wav', sr, mix.T)
 
@@ -189,7 +192,7 @@ def main():
     generate_dry_mixtures('audio/seed/', 'audio/mix/', .5, -.5)
     # #generate_attenuation_varied_mixtures('audio/seed/', 'audio/mix_attn/', [3])
     # #generate_impulse_responses('audio/IR/')
-    generate_reverb_mixtures('audio/mix/', 'audio/IR/downloaded/', 'audio/reverb_mix/', [0, 1, 2, 3, 4, 5])
+    generate_reverb_mixtures('audio/mix/', 'audio/IR/downloaded/', 'audio/reverb_mix/', 5)
 
 
 def delay(data, delay):
@@ -206,9 +209,9 @@ def load_pickle(filename):
     return []
 
 
-def save_pickle(object, filename):
+def save_pickle(obj, filename):
     model_file = open(filename, 'wb')
-    pickle.dump(object, model_file)
+    pickle.dump(obj, model_file)
     model_file.close()
 
 if __name__ == '__main__':
