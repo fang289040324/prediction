@@ -83,7 +83,7 @@ def main():
     plt.xlim((-10, 10))
     # plt.xlabel('Run #')
     # plt.xticks(range(1, n_folds+1), [str(i) for i in range(1, n_folds+1)])
-    plt.savefig('histogram_mir1k_overlayed_new_bss_cross10_back.png')
+    plt.savefig('histogram_mir1k_svrk.png')
 
     mean, std1, std2 = [], [], []
     i = 1
