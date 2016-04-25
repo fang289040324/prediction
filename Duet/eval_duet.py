@@ -12,9 +12,12 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 def main():
-    #run_duet('audio/pan_mix/', 'audio/output/pan_mix/', use_other_stats=True, stats_fname='pan_stats.txt', fit_gmm=True, gmm_fname='pan_gmm.txt',use_sdr=True, sdr_fname='pan_sdr.txt', save_sources=True, plot=True)
-    plot_from_txt('pan_sdr.txt', 'pan_gmm.txt', 'pan_stats.txt', 'output/pan_plots/', per_file=False)
-
+    #run_duet('audio/pan_mix/', 'audio/output/pan_mix/',use_sdr=True, sdr_fname='pan_sdr.txt', use_other_stats=True, stats_fname='pan_stats.txt', fit_gmm=True, gmm_fname='pan_gmm.txt', save_sources=True, plot=True)
+    #run_duet('audio/reverb_pan_mix/', 'audio/output/reverb_pan_mix/', use_sdr=True, sdr_fname='reverb_pan_sdr.txt', use_other_stats=True,
+    #         stats_fname='reverb_pan_stats.txt', fit_gmm=True, gmm_fname='reverb_pan_gmm.txt', save_sources=True, plot=True)
+    #run_duet('audio/reverb_pan_mix_full/', 'audio/output/reverb_pan_mix_full/', plot=True, save_sources=True, use_sdr=True, sdr_fname='reverb_pan_full_sdr.txt', use_other_stats=True,
+    #         stats_fname='reverb_pan_full_stats.txt', fit_gmm=True, gmm_fname='reverb_pan_full_gmm.txt')
+    plot_from_txt('reverb_pan_full_sdr.txt', 'reverb_pan_full_gmm.txt', 'reverb_pan_full_stats.txt', 'output/reverb_pan_full_plots/', per_file=False)
 
 
 def run_duet(src_dir, dest_dir, plot=False, use_sdr=False, save_sources=False, sdr_fname=None, fit_gmm=False,
@@ -178,17 +181,13 @@ def calculate_sdrs(extracted_src_list, original_src_paths):
     if len(index[0]) > 0:
         # Can't pass a silent source to mir_eval
         print "silent source"
-        extracted_sources[index] += 0.0001
+        extracted_sources[index[0][0]][0]+= 1
 
     return mir_eval.separation.bss_eval_sources(reference_sources, extracted_sources)
 
 
-def plot_from_txt(sdr_fname, statistic_fname, statistic2_fname, output_folder, per_file=True, numiter=False):
-
-    if not os.path.exists(output_folder):
-        os.mkdir(output_folder)
-
-    with open(statistic_fname, 'r') as stat_f:
+def generate_dict(statistic_fname, sdr_fname, gmm_fname, numiter):
+    with open(gmm_fname, 'r') as stat_f:
         stats = {}
         q = csv.DictReader(stat_f, delimiter='\t', fieldnames=['filename', 'bc', 'kl', 'eu', 'var'])
         for line in q:
@@ -199,11 +198,13 @@ def plot_from_txt(sdr_fname, statistic_fname, statistic2_fname, output_folder, p
                     if entry == 'filename':
                         stats[entry].append(line[entry])
                     else:
-                        stats[entry].append(np.fromstring(line[entry].translate(None,'[]()'), sep=','))
+                        stats[entry].append(np.fromstring(line[entry].translate(None, '[]()'), sep=','))
 
-    with open(statistic2_fname, 'r') as stat2_f:
+    with open(statistic_fname, 'r') as stat2_f:
         stats2 = {}
-        q3 = csv.DictReader(stat2_f, delimiter='\t', fieldnames=['filename', 'peaks', 'smoothed_peaks', 'entropy', 'means', 'norm_means', 'smooth_means'])
+        q3 = csv.DictReader(stat2_f, delimiter='\t',
+                            fieldnames=['filename', 'peaks', 'smoothed_peaks', 'entropy', 'means', 'norm_means',
+                                        'smooth_means'])
         for line in q3:
             for entry in line.keys():
                 if entry is not None:
@@ -216,7 +217,8 @@ def plot_from_txt(sdr_fname, statistic_fname, statistic2_fname, output_folder, p
 
     with open(sdr_fname, 'r') as sdr_f:
         sdr_stats = {}
-        q2 = csv.DictReader(sdr_f, delimiter='\t', fieldnames=['filename1', 'filename2', 'sdr', 'sir', 'sar', 'perm', 'note'])
+        q2 = csv.DictReader(sdr_f, delimiter='\t',
+                            fieldnames=['filename1', 'filename2', 'sdr', 'sir', 'sar', 'perm', 'note'])
         for line2 in q2:
             for entry in line2.keys():
                 if entry is not None:
@@ -225,7 +227,8 @@ def plot_from_txt(sdr_fname, statistic_fname, statistic2_fname, output_folder, p
                     if 'name' in entry:
                         sdr_stats[entry].append(line2[entry])
                     else:
-                        sdr_stats[entry].append(np.fromstring(line2[entry].translate(None,'][()').replace("\'", ""), sep=' '))
+                        sdr_stats[entry].append(
+                            np.fromstring(line2[entry].translate(None, '][()').replace("\'", ""), sep=' '))
 
     plot_stats = dict()
 
@@ -289,7 +292,7 @@ def plot_from_txt(sdr_fname, statistic_fname, statistic2_fname, output_folder, p
         plot_stats['max_kl'][mix_name].append(max(stats['kl'][i]))
         plot_stats['min_kl'][mix_name].append(min(stats['kl'][i]))
 
-    #pick different eu values
+    # pick different eu values
     for i in xrange(len(stats['eu'])):
         mix_name = os.path.splitext(stats['filename'][i])[0].split('-')[0]
         plot_stats['avg_eu'][mix_name].append(np.average(stats['eu'][i]))
@@ -316,11 +319,22 @@ def plot_from_txt(sdr_fname, statistic_fname, statistic2_fname, output_folder, p
         plot_stats['avg_smoothed'][mix_name].append(np.average(stats2['smoothed_peaks'][i]))
         plot_stats['max_smoothed'][mix_name].append(max(stats2['smoothed_peaks'][i]))
         plot_stats['min_smoothed'][mix_name].append(min(stats2['smoothed_peaks'][i]))
-        plot_stats['diff_smoothed'][mix_name].append(abs(stats2['smoothed_peaks'][i][0] - stats2['smoothed_peaks'][i][1]))
+        plot_stats['diff_smoothed'][mix_name].append(
+            abs(stats2['smoothed_peaks'][i][0] - stats2['smoothed_peaks'][i][1]))
         plot_stats['entropy'][mix_name].append(stats2['entropy'][i][0])
         plot_stats['means'][mix_name].append(stats2['means'][i][0])
         plot_stats['norm_means'][mix_name].append(stats2['norm_means'][i][0])
         plot_stats['smooth_means'][mix_name].append(stats2['smooth_means'][i][0])
+
+    return plot_stats
+
+
+def plot_from_txt(sdr_fname, gmm_fname, statistic_fname, output_folder, per_file=True, numiter=False):
+
+    if not os.path.exists(output_folder):
+        os.mkdir(output_folder)
+
+    plot_stats = generate_dict(statistic_fname, sdr_fname, gmm_fname, numiter=numiter)
 
     plot_2d(plot_stats, per_file, output_folder)
 
@@ -359,6 +373,7 @@ def plot_from_txt(sdr_fname, statistic_fname, statistic2_fname, output_folder, p
 
 def plot_2d(plot_stats, per_file, output_folder):
     # region Plotting iterations versus stats
+    nolog = ['sdr', 'min_smoothed', 'min_peak']
     count = 0
     for key in plot_stats.keys():
         for i in plot_stats['numiter'].keys():
@@ -370,7 +385,8 @@ def plot_2d(plot_stats, per_file, output_folder):
         plt.xlabel('Number of iterations')
         plt.ylabel(key)
         plt.grid(True)
-        plt.yscale('log')
+        if key not in nolog:
+            plt.yscale('log')
         plt.savefig(output_folder + str(count)+'.jpg')
         count += 1
         plt.close()
