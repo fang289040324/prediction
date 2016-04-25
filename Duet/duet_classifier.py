@@ -6,11 +6,6 @@ from sklearn import svm
 from matplotlib import pyplot as plt
 import copy
 import itertools
-import eval_duet
-
-
-def partition_sets(x, y, test_ratio):
-    x_train, x_test, y_train, y_test = cross_validation.train_test_split(x, y, test_size=test_ratio)
 
 
 def run_knn(x, y, n):
@@ -32,21 +27,76 @@ def run_svm(x, y):
 
 def main():
     stats = make_dicts('reverb_pan_full_sdr.txt', 'reverb_pan_full_stats.txt', 'reverb_pan_full_gmm.txt')
-    #do_all_pairs(stats)
-    #do_all_n(stats, 4)
-
     keys = ['norm_means', 'avg_smoothed', 'diff_smoothed', 'min_var']
+
+    perform_experiment(10, stats, keys)
+    # x = np.array([np.array(stats['entropy'][i]) for i in xrange(len(stats['sdr']))])
+    # for k in keys:
+    #     x = np.array([np.append(x[j], np.log(stats[k][j] + 0.0001)) for j in xrange(len(stats['sdr']))])
+    # predictions = run_knn(x, stats['sdr'],10)
+    # diff = predictions - np.array(stats['sdr'])
+    # print diff.mean(), diff.std()
+    # print max(stats['sdr']), min(stats['sdr'])
+    # print max(np.abs(diff))
+    # plt.hist(diff, bins=20)
+    # plt.show()
+
+
+def perform_experiment(n_folds, stats, keys):
+    all_diffs = []
+
+    kf = cross_validation.KFold(len(stats['sdr']), n_folds=n_folds)
 
     x = np.array([np.array(stats['entropy'][i]) for i in xrange(len(stats['sdr']))])
     for k in keys:
         x = np.array([np.append(x[j], np.log(stats[k][j] + 0.0001)) for j in xrange(len(stats['sdr']))])
-    predictions = run_knn(x, stats['sdr'],10)
-    diff = predictions - np.array(stats['sdr'])
-    print diff.mean(), diff.std()
-    print max(stats['sdr']), min(stats['sdr'])
-    print max(np.abs(diff))
-    plt.hist(diff, bins=20)
+
+    y = np.array(stats['sdr'])
+    run = 1
+    for train, test in kf:
+        print 'Doing run ', run
+
+        x_train, x_test, y_train, y_test = x[train], x[test], y[train], y[test]
+        knn = neighbors.KNeighborsRegressor(n_neighbors=10, weights='distance')
+        knn.fit(x_train, y_train)
+
+        diffs = []
+        for i in xrange(len(x_test)):
+
+            guess = knn.predict(x_test[i].reshape(1,-1))
+            diffs.append(y_test[i] - guess)
+
+        all_diffs.append(np.array(diffs))
+        run += 1
+
+    # these two lines make it look pretty
+    plt.style.use('bmh')
+    plt.hist(all_diffs, histtype='stepfilled', stacked=True, alpha=0.8, bins=30)
+
+    plt.title('Generated data histogram')
+    plt.xlabel('True SDR $-$ Predicted SDR (dB)')
     plt.show()
+
+    # print out statistics about each of the runs
+    mean, std1, std2 = [], [], []
+    i = 1
+    for diff_list in all_diffs:
+        std = np.std(diff_list)
+        mean.append(np.mean(diff_list))
+        std1.append(std)
+        per = float(sum([1 for n in diff_list if np.abs(n) >= 2 * std])) / float(len(diff_list)) * 100
+        std2.append(per)
+        print 'Run ', str(i)
+        print 'Mean = {0:.2f} dB'.format(np.mean(diff_list)), ' Std. Dev. = {0:.2f} dB'.format(std),
+        print ' Min = {0:.2f} dB'.format(np.min(diff_list)), ' Max = {0:.2f} dB'.format(np.max(diff_list)),
+        print ' ==== % more than 2 std = {0:.2f}%'.format(per)
+        i += 1
+
+    print '=' * 80
+    print 'Avg. Mean = {0:.2f} dB'.format(np.mean(mean)), 'Avg. Std. Dev = {0:.2f} dB'.format(np.mean(std1)),
+    print 'Avg. % more than 2 std = {0:.2f}%'.format(np.mean(std2))
+
+    print 'max =', np.amax(np.array(all_diffs), 1), ' min =', np.min(np.array(all_diffs), 1)
 
 
 def do_all_n(stats, n):
