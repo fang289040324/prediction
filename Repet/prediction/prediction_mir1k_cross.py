@@ -83,7 +83,7 @@ def main():
     plt.xlim((-10, 10))
     # plt.xlabel('Run #')
     # plt.xticks(range(1, n_folds+1), [str(i) for i in range(1, n_folds+1)])
-    plt.savefig('histogram_mir1k_svrk.png')
+    plt.savefig('histogram_mir1k_both_have_1st_val.png')
 
     mean, std1, std2 = [], [], []
     i = 1
@@ -107,15 +107,10 @@ def main():
 
 def beat_spectrum_prediction_statistics(beat_spectrum):
     beat_spec_norm = beat_spectrum / np.max(beat_spectrum)
-
+    # beat_spec_norm = beat_spec_norm[1:]
     entropy = - sum(p * np.log(p) for p in np.abs(beat_spec_norm)) / len(beat_spec_norm)
-    log_mean = np.log(np.mean(beat_spectrum[1:]))
-
-    # beat_spectrum = beat_spectrum[:1]
-    # beat_spec_norm = beat_spectrum / np.max(beat_spectrum)
-    #
-    # entropy = - sum(p * np.log(p) for p in np.abs(beat_spec_norm)) / len(beat_spec_norm)
-    # log_mean = np.log(np.mean(beat_spec_norm))
+    # log_mean = np.log(np.mean(beat_spectrum[1:] / np.max(beat_spectrum[1:])))
+    log_mean = np.log(np.mean(beat_spectrum / np.max(beat_spectrum)))
 
     return entropy, log_mean
 

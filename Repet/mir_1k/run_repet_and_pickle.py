@@ -11,10 +11,11 @@ import pickle
 def main():
     mir_1k_folder = 'MIR-1K/UndividedWavfile/'
     mir_file_paths = get_wav_paths_in_folder(mir_1k_folder)
-    db_values = [-5.0, 0.0, 5.0]
-    paths_and_dbs = [(mir_file_paths[i], db_values[j])
+    db_range = 5.0
+    n_times = 10
+    paths_and_dbs = [(mir_file_paths[i], (np.random.random() - 1) * db_range)
                      for i in range(len(mir_file_paths))
-                     for j in range(len(db_values))]
+                     for j in range(n_times)]
 
     # for file, db in paths_and_dbs:
     #     run_repet_and_pickle(file, db)
@@ -28,7 +29,7 @@ def run_repet_wrapper(args):
     return run_repet_and_pickle(*args)
 
 def run_repet_and_pickle(file_path, db_change):
-    output_folder = 'pickles/'
+    output_folder = 'pickles_random/'
     file_name = os.path.split(file_path)[1]
     pickle_name = splitext(file_name)[0]
 
@@ -40,7 +41,7 @@ def run_repet_and_pickle(file_path, db_change):
 
     repet = nussl.Repet(sig)
 
-    num = str(int(db_change))
+    num = '%.2f' % db_change
     num = '+' + num if db_change > 0.0 else num
     pickle_name += '_' + num
 

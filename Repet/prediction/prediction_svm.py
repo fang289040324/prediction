@@ -21,7 +21,6 @@ def main():
     sdr_type = 'sdr'
 
     all_diffs = []
-    neighbor_mult = 2
 
     n_folds = 10
     perm = np.random.permutation(len(pickle_folders_to_load))
@@ -34,7 +33,6 @@ def main():
         test_pickles = [pickle_folders_to_load[i] for i in fold_indices]
         train_pickles = [pickle_folders_to_load[i] for i in perm if i not in fold_indices]
 
-        n_neighbors = (run + 1) * neighbor_mult
         svr = SVR()
 
         fits = []
@@ -73,7 +71,7 @@ def main():
 
             diffs.append(cur_sdr - guess)
 
-        all_diffs.append(np.array(diffs))
+        all_diffs.append((np.array(diffs)**2).mean())
         run += 1
 
     # plt.boxplot(all_diffs, vert=True)
@@ -83,10 +81,10 @@ def main():
     plt.hist(all_diffs, histtype='stepfilled', stacked=True, alpha=0.8, bins=30)
     # plt.grid(axis='y')
     plt.title('Generated data histogram')
-    plt.xlabel('True SDR $-$ Predicted SDR (dB)')
+    plt.xlabel('MSE True SDR $-$ Predicted SDR (dB)')
     # plt.xlabel('Run #')
     # plt.xticks(range(1, n_folds+1), [str(i) for i in range(1, n_folds+1)])
-    plt.savefig('histogram_gen_svr10.png')
+    plt.savefig('histogram_gen_svr10_mse.png')
 
     mean, std1, std2 = [], [], []
     i = 1
@@ -94,12 +92,12 @@ def main():
         std = np.std(diff_list)
         mean.append(np.mean(diff_list))
         std1.append(std)
-        per = float(sum([1 for n in diff_list if np.abs(n) >= 2 * std]))  / float(len(diff_list)) * 100
-        std2.append(per)
+        # per = float(sum([1 for n in diff_list if np.abs(n) >= 2 * std]))  / float(len(diff_list)) * 100
+        # std2.append(per)
         print 'Run ', str(i)
         print 'Mean = {0:.2f} dB'.format(np.mean(diff_list)), ' Std. Dev. = {0:.2f} dB'.format(std),
         print ' Min = {0:.2f} dB'.format(np.min(diff_list)), ' Max = {0:.2f} dB'.format(np.max(diff_list)),
-        print ' ==== % more than 2 std = {0:.2f}%'.format(per)
+        # print ' ==== % more than 2 std = {0:.2f}%'.format(per)
         i += 1
 
     print '=' * 40
