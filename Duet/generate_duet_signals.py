@@ -208,8 +208,8 @@ def main():
     #generate_attenuation_varied_mixtures('audio/seed/', 'audio/mix_attn/', [3])
     #generate_impulse_responses('audio/IR/')
     #generate_reverb_mixtures('audio/mix/', 'audio/IR/downloaded/', 'audio/reverb_mix/', 5)
-    generate_pan_mixtures('audio/seed/', 'audio/pan_mix/', [0.0, 0.125, .25, 0.375, 0.50])
-    #generate_reverb_mixtures('audio/pan_mix/', 'audio/IR/downloaded/', 'audio/reverb_pan_mix/', 5)
+    #generate_pan_mixtures('audio/seed/', 'audio/pan_mix/', [0.0, 0.05, 0.125, .25, 0.375])
+    generate_reverb_mixtures('audio/pan_mix/', 'audio/IR/downloaded/', 'audio/reverb_pan_mix_full/', 5)
 
 
 def delay(data, delay):

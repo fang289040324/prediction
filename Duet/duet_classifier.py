@@ -8,10 +8,6 @@ import copy
 import itertools
 
 
-def partition_sets(x, y, test_ratio):
-    x_train, x_test, y_train, y_test = cross_validation.train_test_split(x, y, test_size=test_ratio)
-
-
 def run_knn(x, y, n):
     neigh = neighbors.KNeighborsRegressor(n_neighbors=n, weights='distance')
     scores = cross_validation.cross_val_score(neigh, x, y, cv=10)
@@ -30,26 +26,87 @@ def run_svm(x, y):
 
 
 def main():
-    stats = make_dicts('reverb_sdr.txt', 'other_stats.txt', 'reverb_gmm.txt')
-    #do_all_pairs(stats)
-    #do_all_n(stats, 7)
+    stats = make_dicts('reverb_pan_full_sdr.txt', 'reverb_pan_full_stats.txt', 'reverb_pan_full_gmm.txt')
+    keys = ['norm_means', 'avg_smoothed', 'diff_smoothed', 'min_var']
 
-    keys = ['min_var', 'max_var', 'avg_eu', 'smooth_means', 'norm_means']
+    perform_experiment(10, stats, keys)
+    # x = np.array([np.array(stats['entropy'][i]) for i in xrange(len(stats['sdr']))])
+    # for k in keys:
+    #     x = np.array([np.append(x[j], np.log(stats[k][j] + 0.0001)) for j in xrange(len(stats['sdr']))])
+    # predictions = run_knn(x, stats['sdr'],10)
+    # diff = predictions - np.array(stats['sdr'])
+    # print diff.mean(), diff.std()
+    # print max(stats['sdr']), min(stats['sdr'])
+    # print max(np.abs(diff))
+    # plt.hist(diff, bins=20)
+    # plt.show()
+
+
+def perform_experiment(n_folds, stats, keys):
+    all_diffs = []
+
+    kf = cross_validation.KFold(len(stats['sdr']), n_folds=n_folds)
 
     x = np.array([np.array(stats['entropy'][i]) for i in xrange(len(stats['sdr']))])
     for k in keys:
         x = np.array([np.append(x[j], np.log(stats[k][j] + 0.0001)) for j in xrange(len(stats['sdr']))])
-    predictions = run_knn(x, stats['sdr'],10)
-    diff = predictions - np.array(stats['sdr'])
-    plt.hist(diff, bins=20)
+
+    y = np.array(stats['sdr'])
+    run = 1
+    for train, test in kf:
+        print 'Doing run ', run
+
+        x_train, x_test, y_train, y_test = x[train], x[test], y[train], y[test]
+        knn = neighbors.KNeighborsRegressor(n_neighbors=10, weights='distance')
+        knn.fit(x_train, y_train)
+
+        diffs = []
+        for i in xrange(len(x_test)):
+
+            guess = knn.predict(x_test[i].reshape(1,-1))
+            diffs.append(y_test[i] - guess)
+
+        all_diffs.append(np.array(diffs))
+        run += 1
+
+    # these two lines make it look pretty
+    plt.style.use('bmh')
+    plt.hist(all_diffs, histtype='stepfilled', stacked=True, alpha=0.8, bins=30)
+
+    plt.title('Generated data histogram')
+    plt.xlabel('True SDR $-$ Predicted SDR (dB)')
     plt.show()
+
+    # print out statistics about each of the runs
+    mean, std1, std2 = [], [], []
+    i = 1
+    for diff_list in all_diffs:
+        std = np.std(diff_list)
+        mean.append(np.mean(diff_list))
+        std1.append(std)
+        per = float(sum([1 for n in diff_list if np.abs(n) >= 2 * std])) / float(len(diff_list)) * 100
+        std2.append(per)
+        print 'Run ', str(i)
+        print 'Mean = {0:.2f} dB'.format(np.mean(diff_list)), ' Std. Dev. = {0:.2f} dB'.format(std),
+        print ' Min = {0:.2f} dB'.format(np.min(diff_list)), ' Max = {0:.2f} dB'.format(np.max(diff_list)),
+        print ' ==== % more than 2 std = {0:.2f}%'.format(per)
+        i += 1
+
+    print '=' * 80
+    print 'Avg. Mean = {0:.2f} dB'.format(np.mean(mean)), 'Avg. Std. Dev = {0:.2f} dB'.format(np.mean(std1)),
+    print 'Avg. % more than 2 std = {0:.2f}%'.format(np.mean(std2))
+
+    print 'max =', np.amax(np.array(all_diffs), 1), ' min =', np.min(np.array(all_diffs), 1)
 
 
 def do_all_n(stats, n):
-    keys = ['min_var', 'max_var', 'avg_var', 'min_peak', 'max_peak', 'avg_peak', 'min_eu', 'avg_eu', 'max_eu',
-            'smooth_means', 'norm_means', 'avg_smoothed', 'max_smoothed', 'avg_bc', 'bc_x', 'bc_y']
+    keys = stats.keys()
+    keys.remove('numiter')
+    keys.remove('sdr')
+    keys.remove('bc_y')
 
     for key in itertools.combinations(keys, n):
+
         print key
         x = np.array([np.array(stats['entropy'][i]) for i in xrange(len(stats['sdr']))])
         for k in key:
@@ -128,16 +185,16 @@ def make_dicts(sdr_fname, stat_fname, gmm_fname):
     with open(sdr_fname, 'r') as sdr_f:
         sdr_stats = {}
         q2 = csv.DictReader(sdr_f, delimiter='\t',
-                            fieldnames=['filename1', 'filename2', 'sdr', 'sir', 'sar', 'perm', 'irname'])
+                            fieldnames=['filename1', 'filename2', 'sdr', 'sir', 'sar', 'perm', 'note'])
         for line2 in q2:
             for entry in line2.keys():
                 if entry is not None:
                     if entry not in sdr_stats.keys():
                         sdr_stats[entry] = []
-                    if 'name' in entry:
+                    if 'name' in entry or 'note' in entry:
                         sdr_stats[entry].append(line2[entry])
                     else:
-                        sdr_stats[entry].append(np.fromstring(line2[entry].translate(None, '][()'), sep=' '))
+                        sdr_stats[entry].append(np.fromstring(line2[entry].translate(None, '][()').replace("\'", ""), sep=' '))
 
     plot_stats = dict()
 
@@ -160,9 +217,11 @@ def make_dicts(sdr_fname, stat_fname, gmm_fname):
     plot_stats['avg_peak'] = []
     plot_stats['min_peak'] = []
     plot_stats['max_peak'] = []
+    plot_stats['diff_peak'] = []
     plot_stats['avg_smoothed'] = []
     plot_stats['min_smoothed'] = []
     plot_stats['max_smoothed'] = []
+    plot_stats['diff_smoothed'] = []
     plot_stats['entropy'] = []
     plot_stats['means'] = []
     plot_stats['norm_means'] = []
@@ -170,40 +229,34 @@ def make_dicts(sdr_fname, stat_fname, gmm_fname):
 
     # pick different bc values
     for i in xrange(len(stats['bc'])):
+        if np.average(sdr_stats['sdr'][i]) < -100:
+            continue
+        if '-5' in sdr_stats['note'][i] or '-4' in sdr_stats['note'][i]:
+            continue
         plot_stats['avg_bc'].append(np.average(stats['bc'][i]))
         plot_stats['max_bc'].append(max(stats['bc'][i]))
         plot_stats['min_bc'].append(min(stats['bc'][i]))
         plot_stats['bc_x'].append(stats['bc'][i][0])
         plot_stats['bc_y'].append(stats['bc'][i][1])
-
-    # pick different kl values
-    for i in xrange(len(stats['kl'])):
         plot_stats['avg_kl'].append(np.average(stats['kl'][i]))
         plot_stats['max_kl'].append(max(stats['kl'][i]))
         plot_stats['min_kl'].append(min(stats['kl'][i]))
-
-    # pick different eu values
-    for i in xrange(len(stats['eu'])):
         plot_stats['avg_eu'].append(np.average(stats['eu'][i]))
         plot_stats['max_eu'].append(max(stats['eu'][i]))
         plot_stats['min_eu'].append(min(stats['eu'][i]))
-
-    # pick different var values
-    for i in xrange(len(stats['var'])):
         plot_stats['avg_var'].append(np.average(stats['var'][i]))
         plot_stats['max_var'].append(max(stats['var'][i]))
         plot_stats['min_var'].append(min(stats['var'][i]))
-
-    for i in xrange(len(sdr_stats['sdr'])):
         plot_stats['sdr'].append(np.average(sdr_stats['sdr'][i]))
-
-    for i in xrange(len(stats2['peaks'])):
-        plot_stats['avg_peak'].append(np.average(stats2['smoothed_peaks'][i]))
-        plot_stats['max_peak'].append(max(stats2['smoothed_peaks'][i]))
-        plot_stats['min_peak'].append(min(stats2['smoothed_peaks'][i]))
+        plot_stats['avg_peak'].append(np.average(stats2['peaks'][i]))
+        plot_stats['max_peak'].append(max(stats2['peaks'][i]))
+        plot_stats['min_peak'].append(min(stats2['peaks'][i]))
+        plot_stats['diff_peak'].append(abs(stats2['peaks'][i][0] - stats2['peaks'][i][1]))
         plot_stats['avg_smoothed'].append(np.average(stats2['smoothed_peaks'][i]))
         plot_stats['max_smoothed'].append(max(stats2['smoothed_peaks'][i]))
         plot_stats['min_smoothed'].append(min(stats2['smoothed_peaks'][i]))
+        plot_stats['diff_smoothed'].append(
+            abs(stats2['smoothed_peaks'][i][0] - stats2['smoothed_peaks'][i][1]))
         plot_stats['entropy'].append(stats2['entropy'][i][0])
         plot_stats['means'].append(stats2['means'][i][0])
         plot_stats['norm_means'].append(stats2['norm_means'][i][0])
