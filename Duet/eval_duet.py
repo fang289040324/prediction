@@ -17,7 +17,17 @@ def main():
     #         stats_fname='reverb_pan_stats.txt', fit_gmm=True, gmm_fname='reverb_pan_gmm.txt', save_sources=True, plot=True)
     #run_duet('audio/reverb_pan_mix_full/', 'audio/output/reverb_pan_mix_full/', plot=True, save_sources=True, use_sdr=True, sdr_fname='reverb_pan_full_sdr.txt', use_other_stats=True,
     #         stats_fname='reverb_pan_full_stats.txt', fit_gmm=True, gmm_fname='reverb_pan_full_gmm.txt')
-    plot_from_txt('reverb_pan_full_sdr.txt', 'reverb_pan_full_gmm.txt', 'reverb_pan_full_stats.txt', 'output/reverb_pan_full_plots/', per_file=False)
+    #plot_from_txt('pan_sdr.txt', 'pan_gmm.txt', 'reverb_pan_full_stats.txt', 'output/reverb_pan_full_plots/', per_file=False)
+    stats = generate_dict('pan_stats.txt', 'pan_sdr.txt', 'pan_gmm.txt', False)
+    for i in stats['numiter'].keys():
+        if stats['sdr'][i][0] < -100:
+            continue
+        plt.scatter(stats['numiter'][i], stats['sdr'][i])
+    plt.title('SDR vs Panning')
+    plt.ylabel('SDR (dB)')
+    plt.xlabel('Panning')
+    plt.show()
+    pass
 
 
 def run_duet(src_dir, dest_dir, plot=False, use_sdr=False, save_sources=False, sdr_fname=None, fit_gmm=False,
