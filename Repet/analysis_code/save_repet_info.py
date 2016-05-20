@@ -12,8 +12,9 @@ MIR_EVAL = True
 MATLAB_WRAPPER = False
 MATLAB_ENGINE = False
 
-SHOULD_PICKLE_BEAT_SPEC = True
-SHOULD_PICKLE_SIM_MAT = False
+SHOULD_PICKLE_BEAT_SPEC = False
+SHOULD_PICKLE_SIM_MAT = True
+SHOULD_PICKLE_SDR = False
 
 max_sec = 10.0
 sample_rate = 44100
@@ -26,9 +27,8 @@ background_folder = base_folder + 'test_background/'
 out = '../pickles_rolloff/'
 
 def save_info():
-    pool = Pool()
+    pool = Pool(processes=6)
     pool.map(run_repet_and_pickle, get_mixture_paths2(mixture_folder).iteritems())
-    pool.join()
     pool.close()
 
 
@@ -57,8 +57,12 @@ def run_repet_and_pickle(paths):
 
     if SHOULD_PICKLE_SIM_MAT:
         sim_mat = r.get_similarity_matrix()
-        pickle.dump(sim_mat, open(join(mixture_pickle_path, '{}__sim_mat.pick'.format(mixture_pickle_name)), 'wb'))
-        print 'pickled {} sim matrix'.format(mixture_file)
+        sim_path = join(mixture_pickle_path, '{}__sim_mat.pick'.format(mixture_pickle_name))
+        if not os.path.exists(sim_path):
+            pickle.dump(sim_mat, open(sim_path, 'wb'))
+            print 'pickled {} sim matrix'.format(mixture_file)
+    # else:
+    #     print 'not pickling sim matrix for {}'.format(mixture_file)
 
     r()
 
@@ -88,8 +92,7 @@ def run_repet_and_pickle(paths):
     sdr_dict = {'foreground': {'sdr': bss_vals[0][0], 'sir': bss_vals[1][0], 'sar': bss_vals[2][0]},
                 'background': {'sdr': bss_vals[0][1], 'sir': bss_vals[1][1], 'sar': bss_vals[2][1]}}
 
-    should_pickle_sdr = True
-    if should_pickle_sdr:
+    if SHOULD_PICKLE_SDR:
         pickle.dump(sdr_dict, open(join(mixture_pickle_path, '{}__sdrs.pick'.format(mixture_pickle_name)), 'wb'))
         print 'pickled {} sdrs'.format(mixture_file)
     else:

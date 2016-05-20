@@ -48,6 +48,5 @@ def beat_spectrum_prediction_statistics(beat_spectrum):
     return entropy, log_mean
 
 
-
 if __name__ == '__main__':
     main()
