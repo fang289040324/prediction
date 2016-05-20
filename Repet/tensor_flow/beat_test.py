@@ -17,7 +17,7 @@ def main():
     beat_spec_len = 432
 
     # training params
-    n_classes = 11
+    n_classes = 15
     n_training_steps = 1000
     training_step_size = 100
     training_percent = 0.85
@@ -62,7 +62,7 @@ def main():
     session.run(init)
 
     # train
-    for i in range(n_training_steps):
+    for j in range(n_training_steps):
         indices = np.random.choice(train, training_step_size, False)
         beat_spec_train = np.array([beat_spec_array[i] for i in indices])
         sdr_train = np.array([sdr_array[i] for i in indices])
