@@ -9,6 +9,7 @@ import distance_measures as d
 import matplotlib.pyplot as plt
 import math
 from mpl_toolkits.mplot3d import Axes3D
+import pickle
 
 
 def main():
@@ -18,20 +19,20 @@ def main():
     #run_duet('audio/reverb_pan_mix_full/', 'audio/output/reverb_pan_mix_full/', plot=True, save_sources=True, use_sdr=True, sdr_fname='reverb_pan_full_sdr.txt', use_other_stats=True,
     #         stats_fname='reverb_pan_full_stats.txt', fit_gmm=True, gmm_fname='reverb_pan_full_gmm.txt')
     #plot_from_txt('pan_sdr.txt', 'pan_gmm.txt', 'reverb_pan_full_stats.txt', 'output/reverb_pan_full_plots/', per_file=False)
-    stats = generate_dict('pan_stats.txt', 'pan_sdr.txt', 'pan_gmm.txt', False)
-    for i in stats['numiter'].keys():
-        if stats['sdr'][i][0] < -100:
-            continue
-        plt.scatter(stats['numiter'][i], stats['sdr'][i])
-    plt.title('SDR vs Panning')
-    plt.ylabel('SDR (dB)')
-    plt.xlabel('Panning')
-    plt.show()
-    pass
+    # stats = generate_dict('pan_stats.txt', 'pan_sdr.txt', 'pan_gmm.txt', False)
+    # for i in stats['numiter'].keys():
+    #     if stats['sdr'][i][0] < -100:
+    #         continue
+    #     plt.scatter(stats['numiter'][i], stats['sdr'][i])
+    # plt.title('SDR vs Panning')
+    # plt.ylabel('SDR (dB)')
+    # plt.xlabel('Panning')
+    # plt.show()
+    run_duet('audio/reverb_pan_mix_full/', pickle=True, pickle_dir='audio/output/pickle/')
 
 
-def run_duet(src_dir, dest_dir, plot=False, use_sdr=False, save_sources=False, sdr_fname=None, fit_gmm=False,
-             gmm_fname=None, hist_ratio =.1, use_other_stats=False, stats_fname=None):
+def run_duet(src_dir, dest_dir=None, plot=False, use_sdr=False, save_sources=False, sdr_fname=None, fit_gmm=False,
+             gmm_fname=None, hist_ratio =.1, use_other_stats=False, stats_fname=None, pickle=False, pickle_dir=None):
     """
 
     Args:
@@ -62,6 +63,9 @@ def run_duet(src_dir, dest_dir, plot=False, use_sdr=False, save_sources=False, s
 
         duet = nussl.Duet(sig, 2)
         duet.run()
+
+        if pickle:
+            save_pickle(duet.hist, pickle_dir+'/'+os.path.splitext(f)[0]+'.p')
 
         if fit_gmm:
             if gmm_fname is None:
@@ -158,8 +162,9 @@ def run_duet(src_dir, dest_dir, plot=False, use_sdr=False, save_sources=False, s
                 a.write(str(smoothed_means)+'\t')
                 a.write('\n')
 
-        if not os.path.exists(dest_dir):
-            os.mkdir(dest_dir)
+        if dest_dir:
+            if not os.path.exists(dest_dir):
+                os.mkdir(dest_dir)
 
         if plot:
             duet.plot(dest_dir + os.path.splitext(f)[0] + '_3d.png', True)
@@ -451,6 +456,18 @@ def is_outlier(points, thresh=3.5):
     modified_z_score = 0.6745 * diff / med_abs_deviation
 
     return modified_z_score > thresh
+
+
+def load_pickle(filename):
+    if os.path.isfile(filename):
+        return pickle.load(open(filename, 'rb'))
+    return []
+
+
+def save_pickle(obj, filename):
+    model_file = open(filename, 'wb')
+    pickle.dump(obj, model_file)
+    model_file.close()
 
 
 if __name__ == '__main__':
