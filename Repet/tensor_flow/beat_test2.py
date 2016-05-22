@@ -25,8 +25,6 @@ def main():
 
     # training params
     n_classes = 16
-    n_training_steps = 1000
-    training_step_size = 100
     training_percent = 0.85
     testing_percent = 0.15
     validation_percent = 0.00
@@ -36,45 +34,52 @@ def main():
     beat_spec_array, sdr_array = load_beat_spec_and_sdrs(pickle_folders_to_load, pickle_folder,
                                                          feature, fg_or_bg, sdr_type)
 
-    sdr_array_1h, hist = sdrs_to_one_hots(sdr_array, n_classes, True)
-
     train, test, validate = split_into_sets(len(pickle_folders_to_load), training_percent,
                                             testing_percent, validation_percent)
 
-    # Building convolutional network
-    network = input_data(shape=[None, beat_spec_len, 1], name='input')
-    network = conv_1d(network, 32, 10, activation='relu', regularizer="L2")
-    network = max_pool_1d(network, 2)
-    # network = local_response_normalization(network)
-    # network = batch_normalization(network)
-    # network = conv_1d(network, 64, 3, activation='relu', regularizer="L2")
-    # network = max_pool_1d(network, 2)
-    # network = local_response_normalization(network)
-    # network = batch_normalization(network)
-    # network = fully_connected(network, 128, activation='tanh')
-    # network = dropout(network, 0.5)
-    network = fully_connected(network, 512, activation='tanh')
-    # network = dropout(network, 0.5)
-    network = fully_connected(network, n_classes, activation='softmax')
-    # network = fully_connected(network, 1, activation='linear')
-    network = regression(network, optimizer='adagrad', learning_rate=0.01,
-                         loss='categorical_crossentropy', name='target')
+    trainX = np.expand_dims([beat_spec_array[i] for i in train], -1)
+    trainY = np.expand_dims([sdr_array[i] for i in train], -1)
+    testX = np.expand_dims([beat_spec_array[i] for i in test], -1)
+    testY = np.array([sdr_array[i] for i in test])
 
-    X = np.expand_dims(beat_spec_array, -1)
-    Y = np.array(sdr_array_1h)
-    # X = np.expand_dims([beat_spec_array[i] for i in train], -1)
-    # Y = np.array([sdr_array_1h[i] for i in train])
-    # testX = np.expand_dims([beat_spec_array[i] for i in test], -1)
-    # testY = np.array([sdr_array[i] for i in test])
+    # Building convolutional network
+    input = input_data(shape=[None, beat_spec_len, 1])
+    conv1 = conv_1d(input, 32, 10, activation='relu', regularizer="L2")
+    max_pool1 = max_pool_1d(conv1, 2)
+    full = fully_connected(max_pool1, 512, activation='tanh')
+    # single = tflearn.single_unit(full)
+    single = fully_connected(full, 1, activation='linear')
+    regress = tflearn.regression(single, optimizer='sgd', loss='mean_square', learning_rate=0.01)
 
     # Training
-    model = tflearn.DNN(network, tensorboard_verbose=1)
-    model.fit({'input': X}, {'target': Y}, n_epoch=20,
-              validation_set=0.1,
+    model = tflearn.DNN(regress, tensorboard_verbose=1)
+    model.fit(trainX, trainY, n_epoch=100,
               snapshot_step=1000, show_metric=True, run_id='{} classes'.format(n_classes - 1))
 
-    # for i in range(len(test)):
-    #     print('prediction = ', model.predict(testX[i]), ' actual = ', testY[i])
+    predicted = np.array(model.predict(testX))[:,0]
+    plot(testY, predicted)
+
+
+def plot(true, pred):
+    """
+
+    :param true:
+    :param pred:
+    :return:
+    """
+    import matplotlib.pyplot as plt
+    plt.plot(true, pred, '.', color='blue', label='data')
+    plt.plot(np.linspace(-50.0, 50.0),np.linspace(-50.0, 50.0), '--', color='red', label='y=x')
+    plt.plot(np.linspace(-50.0, 50.0),np.linspace(-45.0, 55.0), '--', color='green', label='+/- 5dB')
+    plt.plot(np.linspace(-50.0, 50.0),np.linspace(-55.0, 45.0), '--', color='green')
+    plt.title('Generated data')
+    plt.xlabel('True SDR (dB)')
+    plt.xlim(-15, 40)
+    plt.ylim(-15, 40)
+    plt.ylabel('Predicted SDR (dB)')
+    plt.legend(loc='lower right')
+    # plt.colorbar()
+    plt.savefig('scatter_true_pred_cnn_simple_100epoch.png')
 
 def split_into_sets(length, training_percent, testing_percent, validation_percent):
     """
