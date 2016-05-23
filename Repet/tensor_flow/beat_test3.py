@@ -43,17 +43,21 @@ def main():
     testY = np.array([sdr_array[i] for i in test])
 
     # Building convolutional network
-    input = input_data(shape=[None, beat_spec_len, 1])
-    conv1 = conv_1d(input, 32, 10, activation='relu', regularizer="L2")
-    max_pool1 = max_pool_1d(conv1, 2)
-    full = fully_connected(max_pool1, 512, activation='tanh')
-    # single = tflearn.single_unit(full)
-    single = fully_connected(full, 1, activation='linear')
-    regress = tflearn.regression(single, optimizer='sgd', loss='mean_square', learning_rate=0.01)
+    network = input_data(shape=[None, beat_spec_len, 1])
+    network = conv_1d(network, 32, 10, activation='relu', regularizer="L2")
+    network = max_pool_1d(network, 2)
+    network = conv_1d(network, 64, 20, activation='relu', regularizer="L2")
+    network = max_pool_1d(network, 2)
+    network = fully_connected(network, 128, activation='tanh')
+    network = dropout(network, 0.8)
+    network = fully_connected(network, 256, activation='tanh')
+    network = dropout(network, 0.8)
+    network = fully_connected(network, 1, activation='linear')
+    regress = tflearn.regression(network, optimizer='adagrad', loss='mean_square', learning_rate=0.001)
 
     # Training
     model = tflearn.DNN(regress, tensorboard_verbose=1)
-    model.fit(trainX, trainY, n_epoch=500,
+    model.fit(trainX, trainY, n_epoch=10,
               snapshot_step=1000, show_metric=True, run_id='{} classes'.format(n_classes - 1))
 
     predicted = np.array(model.predict(testX))[:,0]
@@ -79,7 +83,7 @@ def plot(true, pred):
     plt.ylabel('Predicted SDR (dB)')
     plt.legend(loc='lower right')
     # plt.colorbar()
-    plt.savefig('scatter_true_pred_cnn_simple_100epoch.png')
+    plt.savefig('scatter_true_pred_cnn_complex1_adagrad_lr0.001_10epoch.png')
 
 def split_into_sets(length, training_percent, testing_percent, validation_percent):
     """
