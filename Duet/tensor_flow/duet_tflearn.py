@@ -25,7 +25,7 @@ def main():
     x_train = np.expand_dims([data['input'][i] for i in train], -1)
     y_train = np.expand_dims([data['sdr'][i] for i in train], -1)
     x_test = np.expand_dims([data['input'][i] for i in test], -1)
-    y_test = np.array([data['sdr'][i] for i in test])
+    y_test = np.expand_dims([data['sdr'][i] for i in test], -1)
 
     # X = np.expand_dims(np.array(data['input']), -1)
     # Y =np.array(data['sdr'])
@@ -45,16 +45,22 @@ def main():
     out = fully_connected(full2, 1, activation='linear')
     network = regression(out, optimizer='sgd', learning_rate=0.01, name='target', loss='mean_square')
 
-    model = tflearn.DNN(network, tensorboard_verbose=0, checkpoint_path='checkpoint.p')
-    model.fit({'input': x_train}, {'target': y_train}, n_epoch=1000,
-              snapshot_step=2000, run_id='convnet_duet')
+    model = tflearn.DNN(network, tensorboard_verbose=1, checkpoint_path='checkpoint.p',
+                        tensorboard_dir='tmp/tflearn_logs/')
 
+    model.fit({'input': x_train}, {'target': y_train}, n_epoch=1000, validation_set=(x_test, y_test),
+              snapshot_step=10000, run_id='convnet_duet')
+
+    # for i in xrange(0, 10):
+    #     model.fit({'input': x_train}, {'target': y_train}, n_epoch=1, validation_set=(x_test, y_test),
+    #               snapshot_step=10000, run_id='convnet_duet')
+    #
     predicted = np.array(model.predict(x_test))[:,0]
-    print("Test MSE: ", np.square(y_test - predicted).mean())
-    plot(y_test, predicted)
+    #     print("Test MSE epoch ", i, ": ", np.square(y_test - predicted).mean())
+    plot(y_test, predicted, 'epoch_'+str(i))
 
 
-def plot(true, pred):
+def plot(true, pred, fname):
     """
 
     :param true:
@@ -72,7 +78,7 @@ def plot(true, pred):
     plt.legend(loc='lower right')
     # plt.colorbar()
     plt.show()
-    plt.savefig('scatter_true_pred_cnn_simple_100epoch.pdf')
+    plt.savefig(fname + '.pdf')
 
 
 def load_data(sdr_fn, pickle_dir):
