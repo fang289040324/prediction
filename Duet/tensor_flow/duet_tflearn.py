@@ -5,53 +5,74 @@ import numpy as np
 import os
 import pickle
 
+import tflearn
+from tflearn.layers.core import input_data, dropout, fully_connected
+from tflearn.layers.conv import conv_2d, max_pool_2d
+from tflearn.layers.estimator import regression
+from tflearn.layers.normalization import local_response_normalization
+from tflearn.metrics import Top_k
+
 
 def main():
     data = load_data('reverb_pan_full_sdr.txt', 'pickle/')
 
-    # train, test, validate = split_into_sets(len(data['sdr']), training_percent=0.85, testing_percent=0.15, validation_percent=0.0)
-    # x_train, x_test, y_train, y_test = np.array(data['input'])[train], np.array(data['input'])[test], np.array(data['sdr'])[train], np.array(data['sdr'])[test]
-    #
-    # x_train = np.expand_dims([data['input'][i] for i in train], -1)
-    # y_train = np.array([data['sdr'][i] for i in train])
-    # x_test = np.expand_dims([data['input'][i] for i in test], -1)
-    # y_test = np.array([data['sdr'][i] for i in test])
-
     n_classes = 20
     test_percent = 0.15
 
-    X = np.expand_dims(np.array(data['input']), -1)
-    Y =np.array(data['sdr'])
+    train, test, validate = split_into_sets(len(data['sdr']), 1-test_percent,
+                                            test_percent, 0)
 
-    y = np.expand_dims(np.array(data['sdr']), -1)
-    Y_1h, hist = np.array(sdrs_to_one_hots(Y, n_classes, True))
+    x_train = np.expand_dims([data['input'][i] for i in train], -1)
+    y_train = np.expand_dims([data['sdr'][i] for i in train], -1)
+    x_test = np.expand_dims([data['input'][i] for i in test], -1)
+    y_test = np.array([data['sdr'][i] for i in test])
 
+    # X = np.expand_dims(np.array(data['input']), -1)
+    # Y =np.array(data['sdr'])
+    #
+    # y = np.expand_dims(np.array(data['sdr']), -1)
+    # Y_1h, hist = np.array(sdrs_to_one_hots(Y, n_classes, True))
 
-    import tflearn
-    from tflearn.layers.core import input_data, dropout, fully_connected
-    from tflearn.layers.conv import conv_2d, max_pool_2d
-    from tflearn.layers.estimator import regression
-    from tflearn.layers.normalization import local_response_normalization
-    from tflearn.metrics import Top_k
-
-    network = input_data(shape=[None, 50, 50, 1], name='input')
-    network = conv_2d(network, 32, 5, activation='relu', regularizer="L2")
-    network = max_pool_2d(network, 2)
-    network = local_response_normalization(network)
-    network = conv_2d(network, 64, 5, activation='relu', regularizer="L2")
-    network = max_pool_2d(network, 2)
-    network = local_response_normalization(network)
-    network = fully_connected(network, 128, activation='tanh')
-    network = dropout(network, 0.8)
-    network = fully_connected(network, 256, activation='tanh')
-    network = dropout(network, 0.8)
-    network = fully_connected(network, 1, activation='softmax')
-    network = regression(network, optimizer='adam', learning_rate=0.001, name='target')
+    inp = input_data(shape=[None, 50, 50, 1], name='input')
+    conv1 = conv_2d(inp, 32, [5, 5], activation='relu', regularizer="L2")
+    max_pool = max_pool_2d(conv1, 2)
+    conv2 = conv_2d(max_pool, 64, [5, 5], activation='relu', regularizer="L2")
+    max_pool2 = max_pool_2d(conv2, 2)
+    full = fully_connected(max_pool2, 512, activation='tanh')
+    full = dropout(full, 0.8)
+    full2 = fully_connected(full, 1024, activation='tanh')
+    full2 = dropout(full2, 0.8)
+    out = fully_connected(full2, 1, activation='linear')
+    network = regression(out, optimizer='sgd', learning_rate=0.01, name='target', loss='mean_square')
 
     model = tflearn.DNN(network, tensorboard_verbose=0, checkpoint_path='checkpoint.p')
-    model.fit({'input': X}, {'target': y}, n_epoch=100,
-              validation_set=test_percent,
-              snapshot_step=100, show_metric=True, run_id='convnet_duet')
+    model.fit({'input': x_train}, {'target': y_train}, n_epoch=1000,
+              snapshot_step=2000, run_id='convnet_duet')
+
+    predicted = np.array(model.predict(x_test))[:,0]
+    print("Test MSE: ", np.square(y_test - predicted).mean())
+    plot(y_test, predicted)
+
+
+def plot(true, pred):
+    """
+
+    :param true:
+    :param pred:
+    :return:
+    """
+    import matplotlib.pyplot as plt
+    plt.plot(true, pred, '.', color='blue', label='data')
+    plt.plot(np.linspace(-50.0, 50.0),np.linspace(-50.0, 50.0), '--', color='red', label='y=x')
+    plt.plot(np.linspace(-50.0, 50.0),np.linspace(-45.0, 55.0), '--', color='green', label='+/- 5dB')
+    plt.plot(np.linspace(-50.0, 50.0),np.linspace(-55.0, 45.0), '--', color='green')
+    plt.title('Generated data')
+    plt.xlabel('True SDR (dB)')
+    plt.ylabel('Predicted SDR (dB)')
+    plt.legend(loc='lower right')
+    # plt.colorbar()
+    plt.show()
+    plt.savefig('scatter_true_pred_cnn_simple_100epoch.pdf')
 
 
 def load_data(sdr_fn, pickle_dir):
