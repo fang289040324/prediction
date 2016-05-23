@@ -53,7 +53,7 @@ def main():
 
     # Training
     model = tflearn.DNN(regress, tensorboard_verbose=1)
-    model.fit(trainX, trainY, n_epoch=100,
+    model.fit(trainX, trainY, n_epoch=500,
               snapshot_step=1000, show_metric=True, run_id='{} classes'.format(n_classes - 1))
 
     predicted = np.array(model.predict(testX))[:,0]
