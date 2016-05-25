@@ -38,9 +38,9 @@ def main():
     max_pool = max_pool_2d(conv1, 2)
     conv2 = conv_2d(max_pool, 64, [5, 5], activation='relu', regularizer="L2")
     max_pool2 = max_pool_2d(conv2, 2)
-    full = fully_connected(max_pool2, 512, activation='tanh')
+    full = fully_connected(max_pool2, 128, activation='tanh')
     full = dropout(full, 0.8)
-    full2 = fully_connected(full, 1024, activation='tanh')
+    full2 = fully_connected(full, 256, activation='tanh')
     full2 = dropout(full2, 0.8)
     out = fully_connected(full2, 1, activation='linear')
     network = regression(out, optimizer='sgd', learning_rate=0.01, name='target', loss='mean_square')
@@ -49,7 +49,7 @@ def main():
                         tensorboard_dir='tmp/tflearn_logs/')
 
     model.fit({'input': x_train}, {'target': y_train}, n_epoch=1000, validation_set=(x_test, y_test),
-              snapshot_step=10000, run_id='convnet_duet')
+              snapshot_step=10000, run_id='convnet_duet_2')
 
     # for i in xrange(0, 10):
     #     model.fit({'input': x_train}, {'target': y_train}, n_epoch=1, validation_set=(x_test, y_test),
