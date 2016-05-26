@@ -34,19 +34,21 @@ def main():
 def run_duet(src_dir, dest_dir=None, plot=False, use_sdr=False, save_sources=False, sdr_fname=None, fit_gmm=False,
              gmm_fname=None, hist_ratio =.1, use_other_stats=False, stats_fname=None, pickle=False, pickle_dir=None):
     """
-
+    Runs DUET on all files in the source directory, Optionally computing statistics such as SDR and saving to text files.
     Args:
-        src_dir:
-        dest_dir:
-        plot:
-        use_sdr:
-        save_sources:
-        sdr_fname:
-        fit_gmm:
-        gmm_fname:
-        hist_ratio:
-        use_other_stats:
-        stats_fname:
+        src_dir: The directory containing the files to run DUET on.
+        dest_dir: the directory in which to save the output of DUET. The signals and histograms
+        plot: Flag specifying whether or not to save the histograms produced by duet.
+        use_sdr: Flag specifying whether or not to compute the SDR and save to a text file.
+        save_sources: Flag specifying whether or not to save the separated sources produced by DUET
+        sdr_fname: The path of the text file tosave the SDR statistics to.
+        fit_gmm: Flag specifying whether or not to fit a GMM to the histogram and compute statistics about it.
+        gmm_fname: Filename to save the GMM statistics to.
+        hist_ratio: Ratio to scale the unnormalized histogram values by in order to more quickly fit a GMM to it.
+        use_other_stats: Flag specifying whether or not to compute other statistics (peak height, entropy, etc.) on this histogram
+        stats_fname: Filename to save the other statistics to
+        pickle: Flag specifying whether or not to pickle the 2d histograms
+        pickle_dir: Directory to save the 2d histograms into.
 
     Returns:
 
@@ -180,7 +182,15 @@ def run_duet(src_dir, dest_dir=None, plot=False, use_sdr=False, save_sources=Fal
 
 
 def calculate_sdrs(extracted_src_list, original_src_paths):
+    """
+    Given extracted sources and original source paths, computes the SDRs for these sources.
+    Args:
+        extracted_src_list:  A list of the extracted sources for a file.
+        original_src_paths: A list of paths to the ground truth sources.
 
+    Returns: a tuple of SDR, SIR, SAR, and the permutation tuple produced by mir_eval
+
+    """
     signal_len = len(extracted_src_list[0])
     num_srcs = len(extracted_src_list)
 
@@ -202,6 +212,17 @@ def calculate_sdrs(extracted_src_list, original_src_paths):
 
 
 def generate_dict(statistic_fname, sdr_fname, gmm_fname, numiter):
+    """
+    Creates dictionarys from the statistic text files for plotting
+    Args:
+        statistic_fname: Filename for the other_statistics file
+        sdr_fname: Filename for the SDR statistics file
+        gmm_fname: Filename for the GMM statistics file
+        numiter: Whether or not to log the number of iterations of reverb or the amount of panning
+
+    Returns:
+
+    """
     with open(gmm_fname, 'r') as stat_f:
         stats = {}
         q = csv.DictReader(stat_f, delimiter='\t', fieldnames=['filename', 'bc', 'kl', 'eu', 'var'])
@@ -345,6 +366,19 @@ def generate_dict(statistic_fname, sdr_fname, gmm_fname, numiter):
 
 
 def plot_from_txt(sdr_fname, gmm_fname, statistic_fname, output_folder, per_file=True, numiter=False):
+    """
+    Plots all combinations of statistics from a set of txt files containing the statistics
+    Args:
+        sdr_fname: filename for the sdr statistics
+        gmm_fname: filename for the gmm statistics
+        statistic_fname: filename for the other statistics
+        output_folder: Folder to save the plots into
+        per_file: Whether or not to plot on a per-file basis.
+        numiter: Whether or not to log the number of iterations of reverb or the amount of panning
+
+    Returns:
+
+    """
 
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
@@ -387,6 +421,16 @@ def plot_from_txt(sdr_fname, gmm_fname, statistic_fname, output_folder, per_file
 
 
 def plot_2d(plot_stats, per_file, output_folder):
+    """
+    Plots all statistcis vs numiter and sdr
+    Args:
+        plot_stats: Dict of statistics
+        per_file: whether or not to plot per file
+        output_folder: folder to save plots into
+
+    Returns:
+
+    """
     # region Plotting iterations versus stats
     nolog = ['sdr', 'min_smoothed', 'min_peak']
     count = 0
@@ -424,47 +468,16 @@ def plot_2d(plot_stats, per_file, output_folder):
         plt.close()
 
 
-def is_outlier(points, thresh=3.5):
+def save_pickle(obj, filename):
     """
-    Returns a boolean array with True if points are outliers and False
-    otherwise.
-
-    Parameters:
-    -----------
-        points : An numobservations by numdimensions array of observations
-        thresh : The modified z-score to use as a threshold. Observations with
-            a modified z-score (based on the median absolute deviation) greater
-            than this value will be classified as outliers.
+    saves an object as a pickle
+    Args:
+        obj: the object to save
+        filename: the name ofthe file to save it to
 
     Returns:
-    --------
-        mask : A numobservations-length boolean array.
 
-    References:
-    ----------
-        Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect and
-        Handle Outliers", The ASQC Basic References in Quality Control:
-        Statistical Techniques, Edward F. Mykytka, Ph.D., Editor.
     """
-    if len(points.shape) == 1:
-        points = points[:,None]
-    median = np.median(points, axis=0)
-    diff = np.sum((points - median)**2, axis=-1)
-    diff = np.sqrt(diff)
-    med_abs_deviation = np.median(diff)
-
-    modified_z_score = 0.6745 * diff / med_abs_deviation
-
-    return modified_z_score > thresh
-
-
-def load_pickle(filename):
-    if os.path.isfile(filename):
-        return pickle.load(open(filename, 'rb'))
-    return []
-
-
-def save_pickle(obj, filename):
     model_file = open(filename, 'wb')
     pickle.dump(obj, model_file)
     model_file.close()
