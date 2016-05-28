@@ -66,25 +66,29 @@ def perform_experiment(n_folds, stats, keys):
         knn2 = neighbors.KNeighborsClassifier(n_neighbors=10, weights='distance')
         svr = svm.SVR(kernel='poly', degree=3)
         svm2 = svm.SVC(kernel='poly', degree=3)
-        knn2.fit(x_train, y2_train)
-        svm2.fit(x_train, y2_train)
+        knn.fit(x_train, y_train)
+        #svr.fit(x_train, y2_train)
 
         diffs = []
         for i in xrange(len(x_test)):
 
-            guess = svm2.predict(x_test[i].reshape(1,-1))
-            #diffs.append(y_test[i] - guess)
+            guess = knn.predict(x_test[i].reshape(1,-1))
+            diffs.append(y_test[i] - guess)
             true_sdrs.append(y_test[i])
             pred_sdrs.append(guess)
 
-            print guess, y2_test[i]
-            if not guess == y2_test[i]:
-                mistakes += 1
+            # print guess, y2_test[i]
+            # if not guess == y2_test[i]:
+            #     mistakes += 1
 
-        #all_diffs.append(np.abs(np.array(diffs)))
+        diffs_sq = [i ** 2 for i in diffs]
+        print np.array(diffs_sq).mean()
+        all_diffs.append(np.array(diffs_sq).mean())
         run += 1
 
-    print float(mistakes) / 1260
+    print "avg MSE ", np.array(all_diffs).mean()
+
+    # print float(mistakes) / 1260
 
     # plt.plot(true_sdrs, pred_sdrs, '.', color='blue', label='data')
     # plt.plot(np.linspace(-50.0, 50.0), np.linspace(-50.0, 50.0), '--', color='red', label='y=x')

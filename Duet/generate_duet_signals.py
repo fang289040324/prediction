@@ -13,7 +13,15 @@ import itertools
 def generate_dry_mixtures(src_dir, dest_dir, attn1, attn2):
     """
     Generates a set of mixtures from combinations of seed files in src_dir and saves them in dest_dir
-    :return:
+
+    Args:
+        src_dir: directory containing seed audio files
+        dest_dir: directory to save dry mixtures into
+        attn1: The relative attenuation for the first file.
+        attn2: The relative attenuation for the second file.
+
+    Returns:
+
     """
     seeds = os.listdir(src_dir)
 
@@ -30,9 +38,13 @@ def generate_dry_mixtures(src_dir, dest_dir, attn1, attn2):
 
 def generate_impulse_responses(dest_dir):
     """
-    Generates a set of impulse responses using nussl.Audiomix and saves them in dest_dir
-    Generates a response for each combination of parameters in room_size_range and rcoef_range
-    :return:
+        Generates a set of impulse responses using nussl.Audiomix and saves them in dest_dir
+        Generates a response for each combination of parameters in room_size_range and rcoef_range
+    Args:
+        dest_dir: the directory in which to save the generated impulse responses
+
+    Returns:
+
     """
 
     if not os.path.exists(dest_dir):
@@ -56,7 +68,15 @@ def generate_impulse_responses(dest_dir):
 def generate_reverb_mixtures(src_dir, ir_dir, dest_dir, iter_range):
     """
     Adds reverb from each IR in ir_dir to each mix in src_dir and saves them in dest_dir
-    :return:
+
+    Args:
+        src_dir: Directory with dry audio files
+        ir_dir: Directory containing impulse responses
+        dest_dir: Directory to save mixtures
+        iter_range: integer range of reverb iterations to convolve from 0 to iter_range
+
+    Returns:
+
     """
 
     if not os.path.exists(dest_dir):
@@ -69,6 +89,16 @@ def generate_reverb_mixtures(src_dir, ir_dir, dest_dir, iter_range):
 
 
 def generate_pan_mixtures(src_dir, dest_dir, rel_attn_range):
+    """
+    Generates a set of mixtures with pairs of sources panned in differing amounts
+    Args:
+        src_dir: Directory for seed files
+        dest_dir: Directory to save output mixes
+        rel_attn_range: list of relative attenuations to mix the files with.
+
+    Returns:
+
+    """
 
     if not os.path.exists(dest_dir):
         os.mkdir(dest_dir)
@@ -80,60 +110,19 @@ def generate_pan_mixtures(src_dir, dest_dir, rel_attn_range):
                              -a, a)
 
 
-def generate_attenuation_varied_mixtures(seed_dir, dest_dir, attenuate_amounts):
-    raise Exception('Depreciated')
-
-    seeds = os.listdir(seed_dir)
-    if not os.path.exists(dest_dir):
-        os.mkdir(dest_dir)
-
-    for f in range(0, len(seeds)):
-        for h in range(f+1, len(seeds)):
-            make_attn_varied_mixtures(seed_dir+seeds[f], seed_dir+seeds[h], dest_dir, attenuate_amounts)
-
-
-def make_attn_varied_mixtures(seed1, seed2, dest_dir, attenuate_amounts):
-    raise Exception('Depreciated')
-
-    sr1, data1 = wav.read(seed1)
-    if data1.dtype == np.dtype("int16"):
-        data1 = data1 / float(np.iinfo(data1.dtype).max)
-
-    sr2, data2 = wav.read(seed2)
-    if data2.dtype == np.dtype("int16"):
-        data2 = data2 / float(np.iinfo(data2.dtype).max)
-
-    if sr1 != sr2:
-        raise ValueError("Both sources muse have same sample rate")
-
-    sample1 = data1[0:10 * sr1]
-    sample2 = data2[0:10 * sr1]
-
-    left = sample1 + sample2
-
-    for attenuate_amount in attenuate_amounts:
-        if os.path.exists(dest_dir + os.path.splitext(os.path.split(seed1)[1])[0] + '+' +
-                                      os.path.splitext(os.path.split(seed2)[1])[0] + '_' + str(attenuate_amount) + '.wav'):
-            continue
-        right1 = np.copy(attenuate(sample1, .25))
-        right2 = np.copy(attenuate(sample2, -.25))
-        for i in xrange(0, len(right1)):
-            right1[i] += random.random()*attenuate_amount * random.choice([-1,1])*right1[i]
-        right = right1 + right2
-
-        signal = np.vstack((left, right))
-        scipy.io.wavfile.write(dest_dir+os.path.splitext(os.path.split(seed1)[1])[0]+'+'+os.path.splitext(os.path.split(seed2)[1])[0]+'_'+str(attenuate_amount)+'.wav', sr1, signal.T)
-
-
 def generate_mixture(src1, src2, fname, attn1, attn2):
     """
-    mixes 10 seconds of two sources of the same sample rate and saves them as fname
-    :param src1:
-    :param src2:
-    :param fname:
-    :param attn1:
-    :param attn2:
-    :return:
+        mixes 10 seconds of two sources of the same sample rate and saves them as fname
+
+    Args:
+        src1: filename for the first source
+        src2: filename for the second source
+        fname: output filename to save as
+        attn1: relative attenuation for the first source
+        attn2: relative attenuation for the second source
+
+    Returns:
+
     """
     sr1, data1 = wav.read(src1)
     if data1.dtype == np.dtype("int16"):
@@ -161,10 +150,10 @@ def generate_reverb(signal, reverb, fname, iter_range):
     """
     Adds reverb from the path reverb to the data in the path signal and saves it as fname. Applies reverb iteratively over
     iter_range
-    :param signal:
-    :param reverb:
-    :param fname:
-    :param iter_range:
+    :param signal: the filename for the stereo input signal
+    :param reverb: the filename for the stereo impulse response
+    :param fname: the output filename to save as
+    :param iter_range: the max number of iterations to convolve with the signal
     :return:
     """
     sr, data = wav.read(signal)
@@ -192,7 +181,7 @@ def generate_reverb(signal, reverb, fname, iter_range):
 
 def add_reverb(signal, impulse_response):
     """
-    Adds reverb from impulse_response to the signal using convolution in the frequency domain
+    convolves an impulse response with a signal in order to add reverb to the signal
     :param signal: a multi-channel signal
     :param impulse_response: a multi-channel impulse response function
     :return:
@@ -213,23 +202,29 @@ def main():
 
 
 def delay(data, delay):
+    """
+    Delays a signal by delay frames and 0 pads
+    Args:
+        data: the data to delay
+        delay: the number of frames to delay
+
+    Returns:
+
+    """
     return shift(data, delay)
 
 
 def attenuate(data, attenuation):
+    """
+    Attenuates a signal by a given ratio
+    Args:
+        data: the signal
+        attenuation: the amount of attenuation. 1 attenuation corresponds to multiplying the signal by 0
+
+    Returns:
+
+    """
     return data * (1-attenuation)
-
-
-def load_pickle(filename):
-    if os.path.isfile(filename):
-        return pickle.load(open(filename, 'rb'))
-    return []
-
-
-def save_pickle(obj, filename):
-    model_file = open(filename, 'wb')
-    pickle.dump(obj, model_file)
-    model_file.close()
 
 if __name__ == '__main__':
     main()
