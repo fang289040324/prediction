@@ -5,70 +5,164 @@ import os
 from os.path import isfile, splitext, join
 from multiprocessing import Pool
 import pickle
+import copy
 
 
 
 def main():
+    """
+
+    :return:
+    """
     mir_1k_folder = 'MIR-1K/UndividedWavfile/'
     mir_file_paths = get_wav_paths_in_folder(mir_1k_folder)
-    db_range = 5.0
+    np.random.seed(0)
+    repet_db_range = 5.0
+    duet_range = 0.2
     n_times = 10
-    paths_and_dbs = [(mir_file_paths[i], (np.random.random() - 1) * db_range)
+    paths_and_dbs = [(mir_file_paths[i],
+                      (np.random.random() - 1) * repet_db_range,
+                      (np.random.random() - 1) * duet_range,
+                      label)
                      for i in range(len(mir_file_paths))
-                     for j in range(n_times)]
+                     for label in range(n_times)]
 
+    # uncomment this to debug
     # for file, db in paths_and_dbs:
-    #     run_repet_and_pickle(file, db)
+    #     run_repet_duet_and_pickle(file, db)
 
+    # comment this to debug
     pool = Pool()
-    pool.map(run_repet_wrapper, paths_and_dbs)
-    pool.join()
+    pool.map(run_wrapper, paths_and_dbs)
     pool.close()
 
-def run_repet_wrapper(args):
-    return run_repet_and_pickle(*args)
 
-def run_repet_and_pickle(file_path, db_change):
-    output_folder = 'pickles_random/'
+def run_wrapper(args):
+    """
+
+    :param args:
+    :return:
+    """
+    return run_repet_duet_and_pickle(*args)
+
+
+def run_repet_duet_and_pickle(file_path, repet_db_change, duet_change, label):
+    """
+
+    :param file_path:
+    :param repet_db_change:
+    :param duet_change: change in attenuation between
+    :param label: label is for uniqueness of file names with multi-threading
+    :return:
+    """
+    pickle_output_folder = 'pickles_combined/'
+    audio_output_folder = 'audio_combined/'
     file_name = os.path.split(file_path)[1]
     pickle_name = splitext(file_name)[0]
 
-    sig = nussl.AudioSignal(file_path)
-    true_bg = sig.get_channel(1).reshape(-1, 1).T # channel 1 is background (music)
-    true_fg = sig.get_channel(2).reshape(-1, 1).T # channel 2 is foreground (singing)
+    signal = nussl.AudioSignal(file_path)
+    music = signal.get_channel(1).reshape(-1, 1).T # channel 1 is background (music)
+    singing = signal.get_channel(2).reshape(-1, 1).T # channel 2 is foreground (singing)
 
-    sig.audio_data = true_bg + 10.0**(db_change / 20.0) * true_fg
+    signal.audio_data = do_manipulation(music, singing, repet_db_change, duet_change)
+    signal.write_audio_to_file(join(audio_output_folder, '{}_{}.wav'.format((file_name, label))))
 
-    repet = nussl.Repet(sig)
+    beat_spec, repet_sdr_dict = get_repet_beat_spec_and_sdrs(signal)
+    duet_hist, duet_sdr_dict = get_duet_histogram_and_sdrs(signal)
 
-    num = '%.2f' % db_change
-    num = '+' + num if db_change > 0.0 else num
-    pickle_name += '_' + num
+    pickle_dict = {'file_name': signal.file_name, 'label': label,
+                   'repet_change': repet_db_change, 'duet_change': duet_change,
+                   'beat_spec': beat_spec, 'repet_sdr_dict': repet_sdr_dict,
+                   'duet_hist': duet_hist, 'duet_sdr_dict': duet_sdr_dict}
 
+    pickle.dump(pickle_dict, open(join(pickle_output_folder, '{}_{}.pick'.format((pickle_name, label))), 'wb'))
+    print('pickled {} sdrs'.format(pickle_name))
+
+
+def get_repet_beat_spec_and_sdrs(audio_signal):
+    """
+
+    :param audio_signal:
+    :return:
+    """
+    repet = nussl.Repet(audio_signal)
     beat_spec = repet.get_beat_spectrum()
-    pickle_file = join(output_folder, '{}__beat_spec.pick'.format(pickle_name))
-    pickle.dump(beat_spec, open(pickle_file, 'wb'))
-    print 'pickled {} beat spectrum'.format(pickle_name)
 
     repet()
     est_bg, est_fg = repet.make_audio_signals()
 
     estimated = np.array([est_bg.get_channel(1), est_fg.get_channel(1)])
-    true_srcs = np.array([true_bg.flatten(), true_fg.flatten()])
+    true_srcs = np.array([audio_signal.get_channel(1), audio_signal.get_channel(2)])
 
-    mir_eval.separation.validate(true_srcs, estimated)
-    bss_vals = mir_eval.separation.bss_eval_sources(true_srcs, estimated)
+    return beat_spec, run_bss_eval(true_srcs, estimated)
 
+
+def get_duet_histogram_and_sdrs(audio_signal):
+    """
+
+    :param audio_signal:
+    :return:
+    """
+    duet = nussl.Duet(audio_signal, num_sources=2)
+    duet()
+
+    duet_hist = duet.non_normalized_hist
+    src1, src2 = duet.make_audio_signals()
+
+    estimated = np.array([src1.get_channel(1), src2.get_channel(2)])
+    true_srcs = np.array([audio_signal.get_channel(1), audio_signal.get_channel(2)])
+
+    return duet_hist, run_bss_eval(true_srcs, estimated)
+
+
+def do_manipulation(music, singing, repet_change, duet_change):
+    """
+
+    :param music:
+    :param singing:
+    :param repet_change:
+    :param duet_change:
+    :return:
+    """
+
+    repet_change_singing = 10.0**(repet_change / 20.0) * singing
+    attenuation_ch1 = float(duet_change + 1) / 2
+    attenuation_ch2 = 1 - attenuation_ch1
+
+    singing_ch1 = attenuation_ch1 * repet_change_singing
+    singing_ch2 = attenuation_ch2 * repet_change_singing
+
+    music_ch1 = - attenuation_ch1 * music
+    music_ch2 = - attenuation_ch2 * music
+
+    ch1 = singing_ch1 + music_ch1
+    ch2 = singing_ch2 + music_ch2
+    return np.vstack((ch1, ch2))
+
+
+def run_bss_eval(true, estimated):
+    """
+
+    :param estimated:
+    :param true:
+    :return:
+    """
+
+    mir_eval.separation.validate(true, estimated)
+    bss_vals = mir_eval.separation.bss_eval_sources(true, estimated)
 
     sdr_dict = {'foreground': {'sdr': bss_vals[0][0], 'sir': bss_vals[1][0], 'sar': bss_vals[2][0]},
                 'background': {'sdr': bss_vals[0][1], 'sir': bss_vals[1][1], 'sar': bss_vals[2][1]}}
-    pickle.dump(sdr_dict, open(join(output_folder, '{}__sdrs.pick'.format(pickle_name)), 'wb'))
-    print 'pickled {} sdrs'.format(pickle_name)
 
-
+    return sdr_dict
 
 
 def get_wav_paths_in_folder(folder):
+    """
+
+    :param folder:
+    :return:
+    """
     return [join(folder, f) for f in os.listdir(folder) if isfile(join(folder, f))
             and splitext(join(folder, f))[1] == '.wav']
 
