@@ -8,7 +8,6 @@ import pickle
 import copy
 
 
-
 def main():
     """
 
@@ -18,23 +17,23 @@ def main():
     mir_file_paths = get_wav_paths_in_folder(mir_1k_folder)
     np.random.seed(0)
     repet_db_range = 5.0
-    duet_range = 0.2
+    duet_range = 0.8
     n_times = 10
     paths_and_dbs = [(mir_file_paths[i],
-                      (np.random.random() - 1) * repet_db_range,
-                      (np.random.random() - 1) * duet_range,
+                      (np.random.random() - 0.5) * 2 * repet_db_range,
+                      (np.random.random() - 0.5) * duet_range,
                       label)
                      for i in range(len(mir_file_paths))
                      for label in range(n_times)]
 
     # uncomment this to debug
-    # for file, db in paths_and_dbs:
-    #     run_repet_duet_and_pickle(file, db)
+    for file, db1, db2, label in paths_and_dbs:
+        run_repet_duet_and_pickle(file, db1, db2, label)
 
     # comment this to debug
-    pool = Pool()
-    pool.map(run_wrapper, paths_and_dbs)
-    pool.close()
+    # pool = Pool()
+    # pool.map(run_wrapper, paths_and_dbs)
+    # pool.close()
 
 
 def run_wrapper(args):
@@ -65,7 +64,7 @@ def run_repet_duet_and_pickle(file_path, repet_db_change, duet_change, label):
     singing = signal.get_channel(2).reshape(-1, 1).T # channel 2 is foreground (singing)
 
     signal.audio_data = do_manipulation(music, singing, repet_db_change, duet_change)
-    signal.write_audio_to_file(join(audio_output_folder, '{}_{}.wav'.format((file_name, label))))
+    signal.write_audio_to_file(join(audio_output_folder, '{0}_{1}.wav'.format(file_name, label)))
 
     beat_spec, repet_sdr_dict = get_repet_beat_spec_and_sdrs(signal)
     duet_hist, duet_sdr_dict = get_duet_histogram_and_sdrs(signal)
@@ -75,7 +74,7 @@ def run_repet_duet_and_pickle(file_path, repet_db_change, duet_change, label):
                    'beat_spec': beat_spec, 'repet_sdr_dict': repet_sdr_dict,
                    'duet_hist': duet_hist, 'duet_sdr_dict': duet_sdr_dict}
 
-    pickle.dump(pickle_dict, open(join(pickle_output_folder, '{}_{}.pick'.format((pickle_name, label))), 'wb'))
+    pickle.dump(pickle_dict, open(join(pickle_output_folder, '{0}_{1}.pick'.format(pickle_name, label)), 'wb'))
     print('pickled {} sdrs'.format(pickle_name))
 
 
@@ -109,9 +108,10 @@ def get_duet_histogram_and_sdrs(audio_signal):
     duet_hist = duet.non_normalized_hist
     src1, src2 = duet.make_audio_signals()
 
-    estimated = np.array([src1.get_channel(1), src2.get_channel(2)])
+    estimated = np.array([src1.get_channel(1), src2.get_channel(1)])
     true_srcs = np.array([audio_signal.get_channel(1), audio_signal.get_channel(2)])
 
+    duet.plot('audio_combined/plot.png', True, True);
     return duet_hist, run_bss_eval(true_srcs, estimated)
 
 
@@ -132,8 +132,8 @@ def do_manipulation(music, singing, repet_change, duet_change):
     singing_ch1 = attenuation_ch1 * repet_change_singing
     singing_ch2 = attenuation_ch2 * repet_change_singing
 
-    music_ch1 = - attenuation_ch1 * music
-    music_ch2 = - attenuation_ch2 * music
+    music_ch1 = attenuation_ch2 * music
+    music_ch2 = attenuation_ch1 * music
 
     ch1 = singing_ch1 + music_ch1
     ch2 = singing_ch2 + music_ch2
@@ -148,7 +148,15 @@ def run_bss_eval(true, estimated):
     :return:
     """
 
+    index = np.where(estimated.max(1) == 0)
+    if len(index[0]) > 0:
+        # Can't pass a silent source to mir_eval
+        print "silent source"
+        estimated[index[0][0]][0] += 1
+
     mir_eval.separation.validate(true, estimated)
+
+
     bss_vals = mir_eval.separation.bss_eval_sources(true, estimated)
 
     sdr_dict = {'foreground': {'sdr': bss_vals[0][0], 'sir': bss_vals[1][0], 'sar': bss_vals[2][0]},
