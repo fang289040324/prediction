@@ -75,7 +75,7 @@ def run_repet_duet_and_pickle(file_path, repet_db_change, duet_change, label):
                    'duet_hist': duet_hist, 'duet_sdr_dict': duet_sdr_dict}
 
     pickle.dump(pickle_dict, open(join(pickle_output_folder, '{0}_{1}.pick'.format(pickle_name, label)), 'wb'))
-    print('pickled {} sdrs'.format(pickle_name))
+    print('pickled {0} {1}'.format(pickle_name, label))
 
 
 def get_repet_beat_spec_and_sdrs(audio_signal):
