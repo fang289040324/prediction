@@ -110,8 +110,7 @@ def get_duet_histogram_and_sdrs(audio_signal):
 
     estimated = np.array([src1.get_channel(1), src2.get_channel(1)])
     true_srcs = np.array([audio_signal.get_channel(1), audio_signal.get_channel(2)])
-
-    duet.plot('audio_combined/plot.png', True, True);
+    
     return duet_hist, run_bss_eval(true_srcs, estimated)
 
 
