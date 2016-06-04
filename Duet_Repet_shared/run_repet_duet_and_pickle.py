@@ -75,7 +75,7 @@ def run_repet_duet_and_pickle(file_path, repet_db_change, duet_change, label):
                    'duet_hist': duet_hist, 'duet_sdr_dict': duet_sdr_dict}
 
     pickle.dump(pickle_dict, open(join(pickle_output_folder, '{0}_{1}.pick'.format(pickle_name, label)), 'wb'))
-    print('pickled {} sdrs'.format(pickle_name))
+    print('pickled {0} {1}'.format(pickle_name, label))
 
 
 def get_repet_beat_spec_and_sdrs(audio_signal):
@@ -84,7 +84,7 @@ def get_repet_beat_spec_and_sdrs(audio_signal):
     :param audio_signal:
     :return:
     """
-    repet = nussl.Repet(audio_signal)
+    repet = nussl.Repet(audio_signal, do_mono=True)
     beat_spec = repet.get_beat_spectrum()
 
     repet()
@@ -150,7 +150,7 @@ def run_bss_eval(true, estimated):
     index = np.where(estimated.max(1) == 0)
     if len(index[0]) > 0:
         # Can't pass a silent source to mir_eval
-        print "silent source"
+        print("silent source")
         estimated[index[0][0]][0] += 1
 
     mir_eval.separation.validate(true, estimated)
