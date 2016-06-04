@@ -27,13 +27,13 @@ def main():
                      for label in range(n_times)]
 
     # uncomment this to debug
-    for file, db1, db2, label in paths_and_dbs:
-        run_repet_duet_and_pickle(file, db1, db2, label)
+    # for file, db1, db2, label in paths_and_dbs:
+    #     run_repet_duet_and_pickle(file, db1, db2, label)
 
     # comment this to debug
-    # pool = Pool()
-    # pool.map(run_wrapper, paths_and_dbs)
-    # pool.close()
+    pool = Pool()
+    pool.map(run_wrapper, paths_and_dbs)
+    pool.close()
 
 
 def run_wrapper(args):
@@ -110,7 +110,7 @@ def get_duet_histogram_and_sdrs(audio_signal):
 
     estimated = np.array([src1.get_channel(1), src2.get_channel(1)])
     true_srcs = np.array([audio_signal.get_channel(1), audio_signal.get_channel(2)])
-    
+
     return duet_hist, run_bss_eval(true_srcs, estimated)
 
 
