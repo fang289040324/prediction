@@ -84,7 +84,7 @@ def get_repet_beat_spec_and_sdrs(audio_signal):
     :param audio_signal:
     :return:
     """
-    repet = nussl.Repet(audio_signal)
+    repet = nussl.Repet(audio_signal, do_mono=True)
     beat_spec = repet.get_beat_spectrum()
 
     repet()
@@ -110,7 +110,7 @@ def get_duet_histogram_and_sdrs(audio_signal):
 
     estimated = np.array([src1.get_channel(1), src2.get_channel(1)])
     true_srcs = np.array([audio_signal.get_channel(1), audio_signal.get_channel(2)])
-    
+
     return duet_hist, run_bss_eval(true_srcs, estimated)
 
 
@@ -150,7 +150,7 @@ def run_bss_eval(true, estimated):
     index = np.where(estimated.max(1) == 0)
     if len(index[0]) > 0:
         # Can't pass a silent source to mir_eval
-        print "silent source"
+        print("silent source")
         estimated[index[0][0]][0] += 1
 
     mir_eval.separation.validate(true, estimated)
