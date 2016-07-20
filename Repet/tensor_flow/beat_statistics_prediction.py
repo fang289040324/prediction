@@ -5,7 +5,6 @@ import numpy as np
 import pickle
 import os
 from os.path import join
-import pprint
 
 import tflearn
 from tflearn.layers.core import input_data, dropout, fully_connected
@@ -23,9 +22,9 @@ def main():
     sdr_type = 'sdr'
     feature = 'beat_spec'
     beat_spec_len = 432
+    n_statistics = 2
 
     # training params
-    n_classes = 16
     training_percent = 0.85
     testing_percent = 0.15
     validation_percent = 0.00
@@ -44,25 +43,24 @@ def main():
     testY = np.array([sdr_array[i] for i in test])
 
     # Building convolutional network
-    network = input_data(shape=[None, beat_spec_len, 1])
-    network = conv_1d(network, 32, 4, activation='relu', regularizer="L2")
+    network = input_data(shape=[None, n_statistics, 1])
+    network = conv_1d(network, 32, 40, activation='relu', regularizer="L2")
     network = max_pool_1d(network, 2)
     network = conv_1d(network, 64, 80, activation='relu', regularizer="L2")
     network = max_pool_1d(network, 2)
-    network = fully_connected(network, 128, activation='relu')
+    network = fully_connected(network, 128, activation='tanh')
     network = dropout(network, 0.8)
-    network = fully_connected(network, 256, activation='relu') # look for non-tanh things???
+    network = fully_connected(network, 256, activation='tanh')
     network = dropout(network, 0.8)
     network = fully_connected(network, 1, activation='linear')
-    regress = tflearn.regression(network, optimizer='sgd', loss='mean_square', learning_rate=0.01)
+    regress = tflearn.regression(network, optimizer='adagrad', loss='mean_square', learning_rate=0.001)
 
     # Training
     model = tflearn.DNN(regress, tensorboard_verbose=1)
     model.fit(trainX, trainY, n_epoch=100,
-              snapshot_step=1000, show_metric=True, run_id='relus_100_3')
+              snapshot_step=1000, show_metric=True, run_id='beat_spec_statistics_1')
 
     predicted = np.array(model.predict(testX))[:,0]
-    # pprint.pprint()
     print("Test MSE: ", np.square(testY - predicted).mean())
     plot(testY, predicted)
 
@@ -86,8 +84,7 @@ def plot(true, pred):
     plt.ylabel('Predicted SDR (dB)')
     plt.legend(loc='lower right')
     # plt.colorbar()
-    plt.savefig('scatter_true_pred_cnn_complex1_sgd_lr0.01_win4_100epoch_last_two_relu3.png')
-
+    plt.savefig('scatter_true_pred_cnn_complex1_adagrad_lr0.001_win40_100epoch.png')
 
 def split_into_sets(length, training_percent, testing_percent, validation_percent):
     """
@@ -124,21 +121,18 @@ def load_beat_spec_and_sdrs(pickle_folders_to_load, pickle_folder,
 
     return np.array(beat_spec_array), np.array(sdr_array)
 
-def sdrs_to_one_hots(sdr_array, n_classes, verbose):
-    sdr_array = np.array(sdr_array)
+def beat_spectrum_prediction_statistics(beat_spectrum):
+    beat_spec_norm = beat_spectrum / np.max(beat_spectrum)
 
-    hist = np.histogram(sdr_array, bins=n_classes - 1)
-    diff = hist[1][1] - hist[1][0]
+    entropy = - sum(p * np.log(p) for p in np.abs(beat_spec_norm)) / len(beat_spec_norm)
+    log_mean = np.log(np.mean(beat_spectrum[1:]))
+    # beat_spectrum = beat_spectrum[:1]
+    # beat_spec_norm = beat_spectrum / np.max(beat_spectrum)
+    #
+    # entropy = - sum(p * np.log(p) for p in np.abs(beat_spec_norm)) / len(beat_spec_norm)
+    # log_mean = np.log(np.mean(beat_spectrum))
 
-    if verbose:
-        print(hist[1])
-        print('granularity = ', diff)
-
-    sdr_in_bins = np.array((sdr_array - sdr_array.min()) / diff, dtype=int)
-
-    one_hot = np.zeros((sdr_array.size, n_classes))
-    one_hot[np.arange(sdr_array.size), sdr_in_bins] = 1
-    return one_hot, hist
+    return entropy, log_mean
 
 
 if __name__ == '__main__':

@@ -4,8 +4,8 @@ import tensorflow as tf
 import numpy as np
 import pickle
 import os
-from os.path import join
-import pprint
+from os.path import join, splitext, isfile
+import time
 
 import tflearn
 from tflearn.layers.core import input_data, dropout, fully_connected
@@ -14,28 +14,25 @@ from tflearn.layers.normalization import batch_normalization
 from tflearn.layers.estimator import regression
 
 def main():
-    pickle_folder = '../pickles_rolloff'
-    pickle_folders_to_load = [f for f in os.listdir(pickle_folder) if os.path.isdir(join(pickle_folder, f))]
-    pickle_folders_to_load = sorted(pickle_folders_to_load)
+    pickle_folder = 'pickles_combined'
+
 
     # pickle parameters
     fg_or_bg = 'background'
     sdr_type = 'sdr'
     feature = 'beat_spec'
-    beat_spec_len = 432
 
     # training params
-    n_classes = 16
     training_percent = 0.85
     testing_percent = 0.15
     validation_percent = 0.00
+    beat_spec_max = 355
 
 
     # set up training, testing, & validation partitions
-    beat_spec_array, sdr_array = load_beat_spec_and_sdrs(pickle_folders_to_load, pickle_folder,
-                                                         feature, fg_or_bg, sdr_type)
+    beat_spec_array, sdr_array = unpickle_beat_spec_and_sdrs(pickle_folder, beat_spec_max)
 
-    train, test, validate = split_into_sets(len(pickle_folders_to_load), training_percent,
+    train, test, validate = split_into_sets(len(beat_spec_array), training_percent,
                                             testing_percent, validation_percent)
 
     trainX = np.expand_dims([beat_spec_array[i] for i in train], -1)
@@ -44,7 +41,7 @@ def main():
     testY = np.array([sdr_array[i] for i in test])
 
     # Building convolutional network
-    network = input_data(shape=[None, beat_spec_len, 1])
+    network = input_data(shape=[None, beat_spec_max, 1])
     network = conv_1d(network, 32, 4, activation='relu', regularizer="L2")
     network = max_pool_1d(network, 2)
     network = conv_1d(network, 64, 80, activation='relu', regularizer="L2")
@@ -56,14 +53,16 @@ def main():
     network = fully_connected(network, 1, activation='linear')
     regress = tflearn.regression(network, optimizer='sgd', loss='mean_square', learning_rate=0.01)
 
+    start = time.time()
     # Training
     model = tflearn.DNN(regress, tensorboard_verbose=1)
-    model.fit(trainX, trainY, n_epoch=100,
-              snapshot_step=1000, show_metric=True, run_id='relus_100_3')
+    model.fit(trainX, trainY, n_epoch=2000,
+              snapshot_step=1000, show_metric=True, run_id='mir1k_2000_truncate')
+    elapsed = (time.time() - start)
 
     predicted = np.array(model.predict(testX))[:,0]
-    # pprint.pprint()
     print("Test MSE: ", np.square(testY - predicted).mean())
+    print(elapsed, "seconds")
     plot(testY, predicted)
 
 
@@ -86,7 +85,7 @@ def plot(true, pred):
     plt.ylabel('Predicted SDR (dB)')
     plt.legend(loc='lower right')
     # plt.colorbar()
-    plt.savefig('scatter_true_pred_cnn_complex1_sgd_lr0.01_win4_100epoch_last_two_relu3.png')
+    plt.savefig('scatter_true_pred_mir1kaug_cnn_complex1_sgd_lr0.01_win4_2000epoch_last_two_relu_truncate.png')
 
 
 def split_into_sets(length, training_percent, testing_percent, validation_percent):
@@ -109,6 +108,28 @@ def split_into_sets(length, training_percent, testing_percent, validation_percen
     return train, test, validate
 
 
+def unpickle_beat_spec_and_sdrs(base_folder, max_len):
+    list_of_all_pickles = [join(base_folder, f) for f in os.listdir(base_folder) if isfile(join(base_folder, f))
+                            and splitext(join(base_folder, f))[1] == '.pick']
+    list_of_all_pickles = sorted(list_of_all_pickles)
+
+    max_bs_len = -1
+    beat_spectra = np.zeros((len(list_of_all_pickles), max_len))
+    sdrs = np.zeros((len(list_of_all_pickles)))
+    i = 0
+    for pick in list_of_all_pickles:
+        pick_dict = pickle.load(open(pick, 'rb'))
+        max_bs_len = len(pick_dict['beat_spec']) if len(pick_dict['beat_spec']) > max_bs_len else max_bs_len
+        beat_spectra[i, :] = pick_dict['beat_spec'][:max_len]
+        sdrs[i] = pick_dict['repet_sdr_dict']['background']['sdr']
+        i += 1
+
+    # beat_spectra = np.array([np.pad(bs, (0, max_bs_len - len(bs)), 'constant', constant_values=(0,))
+    #                          for bs in beat_spectra])
+
+    return np.array(beat_spectra), np.array(sdrs)
+
+
 def load_beat_spec_and_sdrs(pickle_folders_to_load, pickle_folder,
                             feature, fg_or_bg, sdr_type):
     beat_spec_array = []
@@ -123,22 +144,6 @@ def load_beat_spec_and_sdrs(pickle_folders_to_load, pickle_folder,
         sdr_array.append(sdr_vals[fg_or_bg][sdr_type])
 
     return np.array(beat_spec_array), np.array(sdr_array)
-
-def sdrs_to_one_hots(sdr_array, n_classes, verbose):
-    sdr_array = np.array(sdr_array)
-
-    hist = np.histogram(sdr_array, bins=n_classes - 1)
-    diff = hist[1][1] - hist[1][0]
-
-    if verbose:
-        print(hist[1])
-        print('granularity = ', diff)
-
-    sdr_in_bins = np.array((sdr_array - sdr_array.min()) / diff, dtype=int)
-
-    one_hot = np.zeros((sdr_array.size, n_classes))
-    one_hot[np.arange(sdr_array.size), sdr_in_bins] = 1
-    return one_hot, hist
 
 
 if __name__ == '__main__':

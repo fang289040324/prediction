@@ -8,11 +8,18 @@ if __name__ == '__main__':
     bss_measures = ['sdr', 'sir', 'sar']
 
     bss_vals = { (b, s): [] for b in bg_fg for s in bss_measures}
+    all_bss = []
     for pick in pickle_folders_to_load:
         sdrs_name = join(pickle_folder, pick, pick + '__sdrs.pick')
         sdr_vals = pickle.load(open(sdrs_name, 'rb'))
-        [bss_vals[(b, s)].append(sdr_vals[b][s]) for b in bg_fg for s in bss_measures]
+        # [bss_vals[(b, s)].append(sdr_vals[b][s]) for b in bg_fg for s in bss_measures]
+        for b in bg_fg:
+            for s in bss_measures:
+                all_bss.append((sdr_vals[b][s], os.path.split(pick)[1], b, s))
 
-    for b in bg_fg:
-        for s in bss_measures:
-            print b, s, 'min = ', min(bss_vals[(b, s)]), 'max = ', max(bss_vals[(b, s)])
+    avg = sum(a[0] for a in all_bss) / len(all_bss)
+    # all_bss.sort(key=lambda tup: tup[0])
+    #
+    # f = open('bss_sorted.txt', 'w')
+    # for bss in all_bss:
+    #     f.write('{0:+2f} \t {1:40} \t {2:16} \t {3:5}\n'.format(*bss))

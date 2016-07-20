@@ -27,13 +27,13 @@ def main():
                      for label in range(n_times)]
 
     # uncomment this to debug
-    for file, db1, db2, label in paths_and_dbs:
-        run_repet_duet_and_pickle(file, db1, db2, label)
+    # for file, db1, db2, label in paths_and_dbs:
+    #     run_repet_duet_and_pickle(file, db1, db2, label)
 
     # comment this to debug
-    # pool = Pool()
-    # pool.map(run_wrapper, paths_and_dbs)
-    # pool.close()
+    pool = Pool(processes=6)
+    pool.map(run_wrapper, paths_and_dbs)
+    pool.close()
 
 
 def run_wrapper(args):
@@ -172,6 +172,15 @@ def get_wav_paths_in_folder(folder):
     """
     return [join(folder, f) for f in os.listdir(folder) if isfile(join(folder, f))
             and splitext(join(folder, f))[1] == '.wav']
+
+
+def get_pickle_object(path_to_pickle):
+    """
+
+    :param path_to_pickle:
+    :return:
+    """
+    pick = pickle.load(open(path_to_pickle, 'rb'))
 
 if __name__ == '__main__':
     main()
