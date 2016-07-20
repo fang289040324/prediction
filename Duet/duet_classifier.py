@@ -62,24 +62,21 @@ def perform_experiment(n_folds, stats, keys):
 
         x_train, x_test, y_train, y_test = x[train], x[test], y[train], y[test]
         y2_train, y2_test = y2[train], y2[test]
-        knn = neighbors.KNeighborsRegressor(n_neighbors=10, weights='distance')
-        knn2 = neighbors.KNeighborsClassifier(n_neighbors=10, weights='distance')
+        knnr = neighbors.KNeighborsRegressor(n_neighbors=10, weights='distance')
+        knnc = neighbors.KNeighborsClassifier(n_neighbors=10, weights='distance')
         svr = svm.SVR(kernel='poly', degree=3)
-        svm2 = svm.SVC(kernel='poly', degree=3)
-        knn.fit(x_train, y_train)
+        svm = svm.SVC(kernel='poly', degree=3)
+        
+        knnr.fit(x_train, y_train)
         #svr.fit(x_train, y2_train)
 
         diffs = []
         for i in xrange(len(x_test)):
 
-            guess = knn.predict(x_test[i].reshape(1,-1))
+            guess = knnr.predict(x_test[i].reshape(1,-1))
             diffs.append(y_test[i] - guess)
             true_sdrs.append(y_test[i])
             pred_sdrs.append(guess)
-
-            # print guess, y2_test[i]
-            # if not guess == y2_test[i]:
-            #     mistakes += 1
 
         diffs_sq = [i ** 2 for i in diffs]
         print np.array(diffs_sq).mean()
@@ -88,53 +85,6 @@ def perform_experiment(n_folds, stats, keys):
 
     print "avg MSE ", np.array(all_diffs).mean()
 
-    # print float(mistakes) / 1260
-
-    # plt.plot(true_sdrs, pred_sdrs, '.', color='blue', label='data')
-    # plt.plot(np.linspace(-50.0, 50.0), np.linspace(-50.0, 50.0), '--', color='red', label='y=x')
-    # plt.plot(np.linspace(-50.0, 50.0), np.linspace(-45.0, 55.0), '--', color='green', label='+/- 5dB')
-    # plt.plot(np.linspace(-50.0, 50.0), np.linspace(-55.0, 45.0), '--', color='green')
-    # plt.title('Generated data')
-    # plt.xlabel('True SDR (dB)')
-    # plt.xlim(-40, 40)
-    # plt.ylim(-40, 40)
-    # plt.ylabel('Predicted SDR (dB)')
-    # plt.legend(loc='lower right')
-    # plt.show()
-
-    # plt.hist(true_sdrs, bins=30)
-    # plt.xlabel('SDR (dB)')
-    # plt.ylabel('frequency')
-    # plt.title('Generated Data SDRs')
-    # plt.show()
-    # these two lines make it look pretty
-    # plt.style.use('bmh')
-    # plt.hist(all_diffs, histtype='stepfilled', stacked=True, alpha=0.8, bins=30)
-    #
-    # plt.title('Generated data histogram')
-    # plt.xlabel('MSE True SDR $-$ Predicted SDR (dB)')
-    # plt.show()
-
-    # print out statistics about each of the runs
-    # mean, std1, std2 = [], [], []
-    # i = 1
-    # for diff_list in all_diffs:
-    #     std = np.std(diff_list)
-    #     mean.append(np.mean(diff_list))
-    #     std1.append(std)
-    #     per = float(sum([1 for n in diff_list if np.abs(n) >= 2 * std])) / float(len(diff_list)) * 100
-    #     std2.append(per)
-    #     print 'Run ', str(i)
-    #     print 'Mean = {0:.2f} dB'.format(np.mean(diff_list)), ' Std. Dev. = {0:.2f} dB'.format(std),
-    #     print ' Min = {0:.2f} dB'.format(np.min(diff_list)), ' Max = {0:.2f} dB'.format(np.max(diff_list)),
-    #     print ' ==== % more than 2 std = {0:.2f}%'.format(per)
-    #     i += 1
-    #
-    # print '=' * 80
-    # print 'Avg. Mean = {0:.2f} dB'.format(np.mean(mean)), 'Avg. Std. Dev = {0:.2f} dB'.format(np.mean(std1)),
-    # print 'Avg. % more than 2 std = {0:.2f}%'.format(np.mean(std2))
-
-    # print 'max =', np.amax(np.array(all_diffs), 1), ' min =', np.min(np.array(all_diffs), 1)
 
 
 def do_all_n(stats, n):

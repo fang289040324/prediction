@@ -31,7 +31,7 @@ def main():
     run_duet('audio/reverb_pan_mix_full/', pickle=True, pickle_dir='audio/output/pickle/')
 
 
-def run_duet(src_dir, dest_dir=None, plot=False, use_sdr=False, save_sources=False, sdr_fname=None, fit_gmm=False,
+def run_duet(src_dir, dest_dir=None, plot=False, save_sources=False,  use_sdr=False, sdr_fname=None, fit_gmm=False,
              gmm_fname=None, hist_ratio =.1, use_other_stats=False, stats_fname=None, pickle=False, pickle_dir=None):
     """
     Runs DUET on all files in the source directory, Optionally computing statistics such as SDR and saving to text files.

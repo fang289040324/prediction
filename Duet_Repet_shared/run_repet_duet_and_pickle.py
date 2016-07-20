@@ -31,7 +31,7 @@ def main():
     #     run_repet_duet_and_pickle(file, db1, db2, label)
 
     # comment this to debug
-    pool = Pool(processes=6)
+    pool = Pool()
     pool.map(run_wrapper, paths_and_dbs)
     pool.close()
 
