@@ -17,7 +17,7 @@ def main():
     fg_or_bg = 'background'
     sdr_type = 'sdr'
 
-    repet_pickle_folder = '../pickles_rolloff'
+    repet_pickle_folder = 'Repet/pickles_rolloff'
     repet_pickle_folders_to_load = [f for f in os.listdir(repet_pickle_folder)
                                     if os.path.isdir(join(repet_pickle_folder, f))]
     repet_dict = {}
@@ -29,7 +29,7 @@ def main():
         repet_dict[name] = sdr_vals[fg_or_bg][sdr_type]
     # repet_dict = sorted(repet_dict)
 
-    nmf_pickle_folder = ''
+    nmf_pickle_folder = 'NMF/MFCC/mfcc_pickles'
     nmf_pickles_to_load = [join(nmf_pickle_folder, f) for f in os.listdir(nmf_pickle_folder)
                            if isfile(join(nmf_pickle_folder, f))
                            and splitext(join(nmf_pickle_folder, f))[1] == '.pick']
