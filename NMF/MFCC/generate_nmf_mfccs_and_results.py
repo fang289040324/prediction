@@ -57,6 +57,10 @@ def run_nmf_mfcc_and_pickle_mir_evals(paths):
     pickle_name = splitext(file_name)[0]
     pickle_output_path = os.path.join(output_folder, pickle_name)
 
+    if os.path.exists(pickle_output_path):
+        print(pickle_output_path + 'exists! Skipping...')
+        return
+
     back_path = os.path.join(background_folder, back_name)
     true_back = librosa.load(back_path)[0]
     fore_path = os.path.join(foreground_folder, fore_name)

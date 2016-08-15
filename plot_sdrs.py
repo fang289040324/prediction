@@ -8,6 +8,7 @@ from os.path import join, isfile, splitext, basename
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.stats
 
 def main():
     """
@@ -43,13 +44,16 @@ def main():
 
     repet = []
     nmf = []
+    best = []
     assert len(repet_dict) == len(nmf_dict)
     for name in repet_dict:
         repet.append(repet_dict[name])
         nmf.append(nmf_dict[name])
+        best.append(np.max((repet_dict[name], nmf_dict[name])))
 
     repet = np.array(repet)
     nmf = np.array(nmf)
+    best = np.array(best)
 
     plt.plot(repet, nmf)
     plt.xlabel('REPET SDR')
