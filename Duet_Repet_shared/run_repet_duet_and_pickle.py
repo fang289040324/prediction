@@ -13,7 +13,7 @@ def main():
 
     :return:
     """
-    mir_1k_folder = 'MIR-1K/UndividedWavfile/'
+    mir_1k_folder = '../mir_1k/MIR-1K/UndividedWavfile/'
     mir_file_paths = get_wav_paths_in_folder(mir_1k_folder)
     np.random.seed(0)
     repet_db_range = 5.0
